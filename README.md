@@ -2,7 +2,7 @@
 
 > 1985년 전설의 닌텐도 패미컴(NES) **슈퍼마리오 브라더스 (Super Mario Bros. World 1-1 + 지하 보너스 방)**를 99% 동일한 물리·그래픽·사운드로 재현한 고품질 웹앱입니다.
 
-![Super Mario Bros Preview](https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/25.png)
+### 🎮 **[👉 라이브 데모 플레이하기 (Click to Play)](https://jeiel85.github.io/supermario-antigravity/)**
 
 ---
 
