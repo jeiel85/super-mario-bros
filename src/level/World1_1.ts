@@ -24,6 +24,7 @@ export class World1_1 {
     tiles: number[][];
     enemies: EnemySpawn[];
     scenery: SceneryItem[];
+    piranhas: Array<{ pipeX: number; pipeTopY: number }>;
     flagPoleX: number;
     castleX: number;
   } {
@@ -101,7 +102,7 @@ export class World1_1 {
     for (let x = 91; x <= 93; x++) {
       tiles[5][x] = TileType.BRICK;
     }
-    tiles[5][94] = TileType.QUESTION_COIN;
+    tiles[5][94] = TileType.BRICK_MULTICOIN;
 
     tiles[9][100] = TileType.BRICK;
     tiles[9][101] = TileType.QUESTION_STAR;
@@ -201,10 +202,17 @@ export class World1_1 {
       scenery.push({ type: 'cloud_double', tileX: off + 36, tileY: 3 });
     });
 
+    const piranhas = [
+      { pipeX: 38 * TILE_SIZE, pipeTopY: 10 * TILE_SIZE },
+      { pipeX: 46 * TILE_SIZE, pipeTopY: 9 * TILE_SIZE },
+      { pipeX: 179 * TILE_SIZE, pipeTopY: 11 * TILE_SIZE }
+    ];
+
     return {
       tiles,
       enemies,
       scenery,
+      piranhas,
       flagPoleX: 198 * TILE_SIZE,
       castleX: 202 * TILE_SIZE
     };

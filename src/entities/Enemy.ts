@@ -207,3 +207,104 @@ export class Enemy {
     }
   }
 }
+
+// 2. Piranha Plant in Pipes
+export class PiranhaPlant {
+  public x: number;
+  public y: number;
+  public pipeTopY: number;
+  public width = 16;
+  public height = 24;
+  public isDead = false;
+
+  public state: 'HIDDEN' | 'RISING' | 'EXPOSED' | 'RETREATING' = 'HIDDEN';
+  private timer = 0;
+  private animTimer = 0;
+  private animFrame = 0;
+
+  constructor(pipeX: number, pipeTopY: number) {
+    this.x = pipeX + 8; // Center in 32px pipe
+    this.pipeTopY = pipeTopY;
+    this.y = pipeTopY; // Hidden inside pipe initially
+  }
+
+  update(marioX: number, cameraX: number) {
+    if (this.isDead) return;
+
+    // Only update if near camera
+    if (this.x < cameraX - 48 || this.x > cameraX + 300) return;
+
+    this.animTimer++;
+    if (this.animTimer % 8 === 0) {
+      this.animFrame = (this.animFrame + 1) % 2;
+    }
+
+    const distToMario = Math.abs(marioX + 8 - (this.x + 8));
+
+    switch (this.state) {
+      case 'HIDDEN':
+        this.timer++;
+        // Check proximity: only rise if Mario is > 24px away from pipe center
+        if (this.timer >= 70 && distToMario > 24) {
+          this.state = 'RISING';
+          this.timer = 0;
+        }
+        break;
+
+      case 'RISING':
+        this.y -= 0.6;
+        if (this.y <= this.pipeTopY - 24) {
+          this.y = this.pipeTopY - 24;
+          this.state = 'EXPOSED';
+          this.timer = 0;
+        }
+        break;
+
+      case 'EXPOSED':
+        this.timer++;
+        if (this.timer >= 70) {
+          this.state = 'RETREATING';
+          this.timer = 0;
+        }
+        break;
+
+      case 'RETREATING':
+        this.y += 0.6;
+        if (this.y >= this.pipeTopY) {
+          this.y = this.pipeTopY;
+          this.state = 'HIDDEN';
+          this.timer = 0;
+        }
+        break;
+    }
+  }
+
+  public checkMarioCollision(marioX: number, marioY: number, marioW: number, marioH: number): boolean {
+    if (this.isDead || this.state === 'HIDDEN') return false;
+    const overlapX = Math.min(marioX + marioW, this.x + this.width) - Math.max(marioX, this.x);
+    const overlapY = Math.min(marioY + marioH, this.pipeTopY) - Math.max(marioY, this.y);
+    return overlapX > 3 && overlapY > 3;
+  }
+
+  public defeat() {
+    this.isDead = true;
+    NESAudio.playKick();
+  }
+
+  render(ctx: CanvasRenderingContext2D, cameraX: number) {
+    if (this.isDead || this.state === 'HIDDEN') return;
+
+    const img = this.animFrame === 0 ? SpriteSheet.enemies['piranha_0'] : SpriteSheet.enemies['piranha_1'];
+    if (img) {
+      const visibleHeight = Math.min(24, Math.round(this.pipeTopY - this.y));
+      if (visibleHeight > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(Math.round(this.x - cameraX), Math.round(this.y), 16, visibleHeight);
+        ctx.clip();
+        ctx.drawImage(img, Math.round(this.x - cameraX), Math.round(this.y));
+        ctx.restore();
+      }
+    }
+  }
+}

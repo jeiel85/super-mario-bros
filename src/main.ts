@@ -4,7 +4,8 @@ import {
   TILE_SIZE,
   TileType,
   GameState,
-  MarioForm
+  MarioForm,
+  Character
 } from './constants';
 import { SpriteSheet } from './graphics/SpriteSheet';
 import { NESAudio } from './audio/NESAudio';
@@ -13,9 +14,9 @@ import { Renderer } from './graphics/Renderer';
 import { HUD } from './ui/HUD';
 import { TouchControls } from './ui/TouchControls';
 import { Mario } from './entities/Mario';
-import { Enemy } from './entities/Enemy';
+import { Enemy, PiranhaPlant } from './entities/Enemy';
 import { Item, BlockCoin } from './entities/Item';
-import { IParticle, BrickPiece, FloatingScore, BouncingBlock, Fireball } from './entities/Particle';
+import { IParticle, BrickPiece, FloatingScore, BouncingBlock, Fireball, Firework } from './entities/Particle';
 import { World1_1, EnemySpawn, SceneryItem } from './level/World1_1';
 
 export class Game {
@@ -27,6 +28,7 @@ export class Game {
 
   private state: GameState = GameState.TITLE;
   private stateTimer = 0;
+  private frameCount = 0;
 
   // Level Data
   private isUnderground = false;
@@ -44,18 +46,23 @@ export class Game {
   // Active Entities
   private mario: Mario;
   private enemies: Enemy[] = [];
+  private piranhas: PiranhaPlant[] = [];
   private items: Item[] = [];
   private blockCoins: BlockCoin[] = [];
   private bouncingBlocks: BouncingBlock[] = [];
   private particles: IParticle[] = [];
   private fireballs: Fireball[] = [];
+  private multiCoinBricks: Map<string, { hits: number; expireFrame: number }> = new Map();
 
   // Camera & Viewport
   private cameraX = 0;
 
-  // Flagpole animation
+  // Flagpole & Castle celebration
   private flagY = 3 * TILE_SIZE;
   private isFlagLowering = false;
+  private castleFlagY = 112;
+  private fireworksLeft = 0;
+  private fireworkTimer = 0;
 
   constructor() {
     this.canvas = document.getElementById('nes-canvas') as HTMLCanvasElement;
@@ -111,6 +118,7 @@ export class Game {
     this.scenery = data.scenery;
     this.flagPoleX = data.flagPoleX;
     this.castleX = data.castleX;
+    this.piranhas = data.piranhas.map(p => new PiranhaPlant(p.pipeX, p.pipeTopY));
 
     const ugData = World1_1.createUndergroundData();
     this.ugTiles = ugData.tiles;
@@ -123,9 +131,13 @@ export class Game {
     this.bouncingBlocks = [];
     this.particles = [];
     this.fireballs = [];
+    this.multiCoinBricks.clear();
     this.cameraX = 0;
     this.flagY = 3 * TILE_SIZE;
     this.isFlagLowering = false;
+    this.castleFlagY = 112;
+    this.fireworksLeft = 0;
+    this.fireworkTimer = 0;
     this.isUnderground = false;
 
     this.hud.resetLevelTime();
@@ -134,6 +146,7 @@ export class Game {
   // Start Level Playing
   private startLevel() {
     this.initLevel();
+    this.mario.character = this.hud.selectedPlayer === 2 ? Character.LUIGI : Character.MARIO;
     this.mario.reset(40, 192);
     this.state = GameState.PLAYING;
     NESAudio.playOverworld();
@@ -190,11 +203,18 @@ export class Game {
   // -------------------------------------------------------------
   private update() {
     this.input.update();
+    this.frameCount++;
 
     switch (this.state) {
       case GameState.TITLE:
+        if (this.input.selectPressed) {
+          NESAudio.unlock();
+          this.hud.selectedPlayer = this.hud.selectedPlayer === 1 ? 2 : 1;
+          NESAudio.playCoin();
+        }
         if (this.input.startPressed || this.input.jumpPressed) {
           NESAudio.unlock();
+          this.mario.character = this.hud.selectedPlayer === 2 ? Character.LUIGI : Character.MARIO;
           this.state = GameState.START_SCREEN;
           this.stateTimer = 120; // 2 seconds
         }
@@ -207,7 +227,21 @@ export class Game {
         }
         break;
 
+      case GameState.PAUSED:
+        if (this.input.startPressed) {
+          this.state = GameState.PLAYING;
+          NESAudio.playPause();
+          NESAudio.resumeMusic();
+        }
+        break;
+
       case GameState.PLAYING:
+        if (this.input.startPressed) {
+          this.state = GameState.PAUSED;
+          NESAudio.playPause();
+          NESAudio.pauseMusic();
+          return;
+        }
         this.updatePlaying();
         break;
 
@@ -308,13 +342,30 @@ export class Game {
       });
     }
 
-    // 5. Update Enemies
+    // 5. Update Enemies & Piranhas
     this.enemies.forEach(e => {
       e.update(currentTiles, this.cameraX, (score) => {
         this.particles.push(score);
         this.hud.addScore(parseInt(score.text, 10) || 100);
       });
     });
+
+    if (!this.isUnderground) {
+      this.piranhas.forEach(p => {
+        p.update(this.mario.x, this.cameraX);
+
+        // Check collision with Mario
+        if (!this.mario.isInvulnerable && p.checkMarioCollision(this.mario.x, this.mario.y, this.mario.width, this.mario.height)) {
+          if (this.mario.isStarman) {
+            p.defeat();
+            this.hud.addScore(200);
+            this.particles.push(new FloatingScore(p.x, p.y, '200'));
+          } else {
+            this.mario.takeDamage();
+          }
+        }
+      });
+    }
 
     // 6. Update Items & Block Coins
     this.items.forEach(item => item.update(currentTiles));
@@ -331,7 +382,7 @@ export class Game {
     this.fireballs.forEach(fb => fb.update(currentTiles));
     this.fireballs = this.fireballs.filter(fb => !fb.isDead);
 
-    // Fireball vs Enemy collision
+    // Fireball vs Enemy/Piranha collision
     this.fireballs.forEach(fb => {
       if (fb.isDead) return;
       this.enemies.forEach(e => {
@@ -343,6 +394,18 @@ export class Game {
           this.particles.push(new FloatingScore(e.x, e.y, '100'));
         }
       });
+
+      if (!this.isUnderground) {
+        this.piranhas.forEach(p => {
+          if (p.isDead || p.state === 'HIDDEN') return;
+          if (Math.abs(fb.x + 4 - (p.x + 8)) < 12 && fb.y + 8 > p.y && fb.y < p.pipeTopY) {
+            fb.isDead = true;
+            p.defeat();
+            this.hud.addScore(200);
+            this.particles.push(new FloatingScore(p.x, p.y, '200'));
+          }
+        });
+      }
     });
 
     // 9. Underground coin collection
@@ -439,6 +502,25 @@ export class Game {
         this.particles.push(new BrickPiece(px, py + 8, -1.2, -5.5));
         this.particles.push(new BrickPiece(px + 8, py + 8, 1.2, -5.5));
         this.defeatEnemyOnTopOfBlock(tx, ty);
+      }
+    }
+    // Multi-coin Brick (Hits dispense coins until timer expires)
+    else if (tile === TileType.BRICK_MULTICOIN) {
+      const key = `${tx},${ty}`;
+      let info = this.multiCoinBricks.get(key);
+      if (!info) {
+        info = { hits: 0, expireFrame: this.frameCount + 240 };
+        this.multiCoinBricks.set(key, info);
+      }
+      info.hits++;
+      this.bouncingBlocks.push(new BouncingBlock(tx, ty, tile));
+      this.blockCoins.push(new BlockCoin(tx * TILE_SIZE, (ty - 1) * TILE_SIZE));
+      this.hud.addCoin();
+      NESAudio.playCoin();
+      this.defeatEnemyOnTopOfBlock(tx, ty);
+
+      if (info.hits >= 10 || this.frameCount > info.expireFrame) {
+        tiles[ty][tx] = TileType.EMPTY_BLOCK;
       }
     }
   }
@@ -610,6 +692,14 @@ export class Game {
     this.mario.vy = 0;
     this.isFlagLowering = true;
 
+    // In NES SMB, if the timer ends in 1, 3, or 6, fireworks will explode!
+    const remainder = this.hud.timeLeft % 10;
+    if (remainder === 1) this.fireworksLeft = 1;
+    else if (remainder === 3) this.fireworksLeft = 3;
+    else if (remainder === 6) this.fireworksLeft = 6;
+    else this.fireworksLeft = 0;
+    this.fireworkTimer = 0;
+
     // Score points by height touched
     const flagHeight = Math.max(0, 192 - this.mario.y);
     let pts = 100;
@@ -655,25 +745,57 @@ export class Game {
       () => {}
     );
 
+    // Castle flag ascends up the turret
+    if (this.castleFlagY > 88) {
+      this.castleFlagY -= 0.5;
+    }
+
     // Mario enters castle door
     if (this.mario.x >= this.castleX + 32) {
       this.state = GameState.LEVEL_CLEAR;
+      this.stateTimer = 0;
     }
   }
 
   private updateLevelClearTally() {
-    // Tally remaining time to score
+    // Castle flag ascends up the turret
+    if (this.castleFlagY > 88) {
+      this.castleFlagY -= 0.5;
+    }
+
+    // Update fireworks and particles
+    this.particles.forEach(p => p.update());
+    this.particles = this.particles.filter(p => !p.isDead);
+
+    // 1. Tally remaining time to score
     if (this.hud.timeLeft > 0) {
       this.hud.timeLeft--;
       this.hud.addScore(50);
       if (this.hud.timeLeft % 2 === 0) {
         NESAudio.playCoin();
       }
-    } else {
-      // Finished tally, reset to 1-1 after delay
-      this.stateTimer = 180; // 3 seconds
-      this.state = GameState.START_SCREEN;
-      this.startLevel();
+    } 
+    // 2. Explode fireworks if any are scheduled!
+    else if (this.fireworksLeft > 0) {
+      this.fireworkTimer++;
+      if (this.fireworkTimer >= 30) {
+        this.fireworkTimer = 0;
+        this.fireworksLeft--;
+        const fx = 204 * TILE_SIZE + 8 + (Math.random() * 40 - 20);
+        const fy = 40 + (Math.random() * 30);
+        this.particles.push(new Firework(fx, fy));
+        this.hud.addScore(500);
+        this.particles.push(new FloatingScore(fx, fy, '500'));
+      }
+    }
+    // 3. Finished tally & fireworks, reset to 1-1 after delay
+    else {
+      this.stateTimer++;
+      if (this.stateTimer >= 180) {
+        this.stateTimer = 120;
+        this.state = GameState.START_SCREEN;
+        this.startLevel();
+      }
     }
   }
 
@@ -694,12 +816,14 @@ export class Game {
       this.scenery,
       this.mario,
       this.enemies,
+      this.piranhas,
       this.items,
       this.blockCoins,
       this.bouncingBlocks,
       this.particles,
       this.fireballs,
-      this.flagY
+      this.flagY,
+      this.castleFlagY
     );
 
     // Render In-game HUD

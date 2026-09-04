@@ -9,6 +9,7 @@ export class HUD {
   public timeLeft = 400;
   public lives = 3;
   public highScore = 10000;
+  public selectedPlayer: 1 | 2 = 1;
 
   private timerTick = 0;
   private coinAnimFrame = 0;
@@ -60,6 +61,12 @@ export class HUD {
       this.renderStartScreen(ctx);
     } else if (gameState === GameState.GAME_OVER) {
       this.renderGameOver(ctx);
+    } else if (gameState === GameState.PAUSED) {
+      ctx.save();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '8px "Press Start 2P", monospace';
+      ctx.fillText('PAUSE', 108, 120);
+      ctx.restore();
     }
   }
 
@@ -69,8 +76,8 @@ export class HUD {
     ctx.font = '8px "Press Start 2P", monospace';
     ctx.fillStyle = '#ffffff';
 
-    // Headers
-    ctx.fillText('MARIO', 24, 16);
+    // Headers (Mario or Luigi)
+    ctx.fillText(this.selectedPlayer === 2 ? 'LUIGI' : 'MARIO', 24, 16);
     ctx.fillText('WORLD', 144, 16);
     ctx.fillText('TIME', 208, 16);
 
@@ -99,7 +106,7 @@ export class HUD {
   private renderTitleScreen(ctx: CanvasRenderingContext2D) {
     ctx.save();
 
-    // Background is classic black/blue
+    // Background is classic black
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, 0, 256, 240);
 
@@ -116,26 +123,39 @@ export class HUD {
     // Big Title Box
     ctx.fillStyle = '#d82800';
     ctx.font = '16px "Press Start 2P", monospace';
-    ctx.fillText('SUPER MARIO', 40, 75);
-    ctx.fillText('BROS.', 88, 98);
+    ctx.fillText('SUPER MARIO', 40, 72);
+    ctx.fillText('BROS.', 88, 94);
 
     // Subtitle
     ctx.font = '8px "Press Start 2P", monospace';
     ctx.fillStyle = '#fcb000';
-    ctx.fillText('★ 1985 NES WEB EDITION ★', 28, 125);
+    ctx.fillText('★ 1985 NES WEB EDITION ★', 28, 120);
 
+    // Player Options
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('1 PLAYER GAME', 72, 160);
+    ctx.fillText('1 PLAYER GAME', 72, 148);
+    ctx.fillText('2 PLAYER GAME', 72, 164);
+
+    // Mushroom Cursor (Movable via Shift / Select)
+    const cursorY = this.selectedPlayer === 1 ? 141 : 157;
+    const cursorImg = SpriteSheet.ui['mushroom_cursor'];
+    if (cursorImg) {
+      ctx.drawImage(cursorImg, 56, cursorY);
+    }
 
     // High Score
     const hiScoreStr = `TOP - ${this.highScore.toString().padStart(6, '0')}`;
-    ctx.fillText(hiScoreStr, 80, 185);
+    ctx.fillText(hiScoreStr, 80, 184);
 
     // Blinking Prompt
-    if (Math.floor(Date.now() / 500) % 2 === 0) {
+    if (Math.floor(Date.now() / 450) % 2 === 0) {
       ctx.fillStyle = '#fc9838';
-      ctx.fillText('PRESS ENTER TO START', 44, 212);
+      ctx.fillText('PRESS ENTER TO START', 44, 204);
     }
+
+    // NES Nintendo Copyright
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('©1985 NINTENDO', 68, 224);
 
     ctx.restore();
   }
@@ -151,10 +171,10 @@ export class HUD {
 
     ctx.fillText(`WORLD  ${this.world}`, 88, 100);
 
-    // Mario head icon
-    const marioImg = SpriteSheet.marioSmall['idle'];
-    if (marioImg) {
-      ctx.drawImage(marioImg, 96, 120);
+    // Mario or Luigi head icon
+    const playerImg = this.selectedPlayer === 2 ? SpriteSheet.luigiSmall['idle'] : SpriteSheet.marioSmall['idle'];
+    if (playerImg) {
+      ctx.drawImage(playerImg, 96, 120);
     }
     ctx.fillText(`x  ${this.lives}`, 122, 132);
 

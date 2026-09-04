@@ -3,7 +3,7 @@ import { CANVAS_WIDTH, CANVAS_HEIGHT, TILE_SIZE, TileType } from '../constants';
 import { COLORS } from './Palette';
 import { SpriteSheet } from './SpriteSheet';
 import { Mario } from '../entities/Mario';
-import { Enemy } from '../entities/Enemy';
+import { Enemy, PiranhaPlant } from '../entities/Enemy';
 import { Item, BlockCoin } from '../entities/Item';
 import { IParticle, BouncingBlock } from '../entities/Particle';
 import { SceneryItem } from '../level/World1_1';
@@ -22,12 +22,14 @@ export class Renderer {
     scenery: SceneryItem[],
     mario: Mario,
     enemies: Enemy[],
+    piranhas: PiranhaPlant[],
     items: Item[],
     blockCoins: BlockCoin[],
     bouncingBlocks: BouncingBlock[],
     particles: IParticle[],
     fireballs: IParticle[],
-    flagY: number
+    flagY: number,
+    castleFlagY = 112
   ) {
     this.questionAnimTimer = (this.questionAnimTimer + 0.15) % 4;
     const qFrame = Math.floor(this.questionAnimTimer);
@@ -42,13 +44,14 @@ export class Renderer {
     }
 
     // 3. Render Tiles
-    this.renderTiles(tiles, cameraX, isUnderground, qFrame, bouncingBlocks, flagY);
+    this.renderTiles(tiles, cameraX, isUnderground, qFrame, bouncingBlocks, flagY, castleFlagY);
 
     // 4. Render Items & Bouncing Coins
     items.forEach(item => item.render(this.ctx, cameraX));
     blockCoins.forEach(coin => coin.render(this.ctx, cameraX));
 
-    // 5. Render Enemies
+    // 5. Render Enemies & Piranhas
+    piranhas.forEach(p => p.render(this.ctx, cameraX));
     enemies.forEach(enemy => enemy.render(this.ctx, cameraX));
 
     // 6. Render Mario
@@ -110,7 +113,8 @@ export class Renderer {
     isUnderground: boolean,
     qFrame: number,
     bouncingBlocks: BouncingBlock[],
-    flagY: number
+    flagY: number,
+    castleFlagY = 112
   ) {
     const startCol = Math.max(0, Math.floor(cameraX / TILE_SIZE));
     const endCol = Math.min(tiles[0]?.length || 0, Math.ceil((cameraX + CANVAS_WIDTH) / TILE_SIZE));
@@ -134,6 +138,7 @@ export class Renderer {
             this.drawSprite(isUnderground ? 'ground_ug' : 'ground', px, py);
             break;
           case TileType.BRICK:
+          case TileType.BRICK_MULTICOIN:
             this.drawSprite(isUnderground ? 'brick_ug' : 'brick', px, py);
             break;
           case TileType.QUESTION_COIN:
@@ -186,6 +191,12 @@ export class Renderer {
       const flagPx = flagPoleTileX * TILE_SIZE - cameraX - 8;
       if (flagPx > -20 && flagPx < CANVAS_WIDTH + 20) {
         this.drawSprite('flag', flagPx, flagY);
+      }
+
+      // Render Castle top flag (rises when level is cleared)
+      if (castleFlagY < 112) {
+        const castleFlagPx = 204 * TILE_SIZE + 4 - cameraX;
+        this.drawSprite('castle_flag', castleFlagPx, castleFlagY);
       }
     }
   }

@@ -370,9 +370,70 @@ export class NESAudio {
     });
   }
 
+  // Pause Jingle (Ascending Arpeggio C6 -> E6 -> G6 -> C7)
+  public static playPause() {
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const notes = [1046.5, 1318.51, 1567.98, 2093.0];
+    const duration = 0.04;
+    const t0 = this.ctx.currentTime;
+
+    notes.forEach((freq, idx) => {
+      const t = t0 + idx * duration;
+      const osc = this.ctx!.createOscillator();
+      const gain = this.ctx!.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.35, t);
+      gain.gain.linearRampToValueAtTime(0.01, t + duration);
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(t);
+      osc.stop(t + duration);
+    });
+  }
+
+  // Firework Cannon Explosion
+  public static playFirework() {
+    if (this.isMuted || !this.ctx || !this.masterGain || !this.noiseBuffer) return;
+    const t = this.ctx.currentTime;
+    
+    // 1. Noise crunch
+    const source = this.ctx.createBufferSource();
+    source.buffer = this.noiseBuffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1200, t);
+    filter.frequency.exponentialRampToValueAtTime(80, t + 0.4);
+
+    const noiseGain = this.ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.6, t);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+
+    source.connect(filter);
+    filter.connect(noiseGain);
+    noiseGain.connect(this.masterGain);
+    source.start(t);
+    source.stop(t + 0.41);
+
+    // 2. Low boom oscillator
+    const osc = this.ctx.createOscillator();
+    const boomGain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(140, t);
+    osc.frequency.exponentialRampToValueAtTime(30, t + 0.45);
+    boomGain.gain.setValueAtTime(0.5, t);
+    boomGain.gain.exponentialRampToValueAtTime(0.01, t + 0.45);
+    osc.connect(boomGain);
+    boomGain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.46);
+  }
+
   // -------------------------------------------------------------
   // MUSIC TRACKS (Overworld, Underground, Star, Stage Clear, Death)
   // -------------------------------------------------------------
+
+  private static pausedTrack: string | null = null;
 
   public static stopMusic() {
     if (this.musicInterval !== null) {
@@ -380,6 +441,24 @@ export class NESAudio {
       this.musicInterval = null;
     }
     this.currentTrack = null;
+    this.pausedTrack = null;
+  }
+
+  public static pauseMusic() {
+    this.pausedTrack = this.currentTrack;
+    if (this.musicInterval !== null) {
+      clearInterval(this.musicInterval);
+      this.musicInterval = null;
+    }
+    this.currentTrack = null;
+  }
+
+  public static resumeMusic() {
+    const track = this.pausedTrack;
+    this.pausedTrack = null;
+    if (track === 'overworld') this.playOverworld();
+    else if (track === 'underground') this.playUnderground();
+    else if (track === 'star') this.playStar();
   }
 
   // Note frequency map for easy composition

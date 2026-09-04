@@ -49,6 +49,7 @@ export enum TileType {
   EMPTY_BLOCK = 18, // Hit question block
   HIDDEN_1UP = 19,
   COIN = 20,
+  BRICK_MULTICOIN = 21,
 }
 
 // Game states
@@ -63,6 +64,7 @@ export enum GameState {
   CASTLE_WALK = 7,
   LEVEL_CLEAR = 8,
   GAME_OVER = 9,
+  PAUSED = 10,
 }
 
 // Mario forms
@@ -70,4 +72,10 @@ export enum MarioForm {
   SMALL = 0,
   SUPER = 1,
   FIRE = 2,
+}
+
+// Playable character
+export enum Character {
+  MARIO = 0,
+  LUIGI = 1,
 }

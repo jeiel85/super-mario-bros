@@ -61,11 +61,16 @@ export class SpriteSheet {
   public static marioSuper: Record<string, HTMLCanvasElement> = {};
   public static marioFire: Record<string, HTMLCanvasElement> = {};
 
+  public static luigiSmall: Record<string, HTMLCanvasElement> = {};
+  public static luigiSuper: Record<string, HTMLCanvasElement> = {};
+  public static luigiFire: Record<string, HTMLCanvasElement> = {};
+
   public static enemies: Record<string, HTMLCanvasElement> = {};
   public static tiles: Record<string, HTMLCanvasElement> = {};
   public static items: Record<string, HTMLCanvasElement> = {};
   public static particles: Record<string, HTMLCanvasElement> = {};
   public static scenery: Record<string, HTMLCanvasElement> = {};
+  public static ui: Record<string, HTMLCanvasElement> = {};
 
   public static isLoaded = false;
 
@@ -461,6 +466,24 @@ export class SpriteSheet {
       "LLLLBBLLLLLLLLBB"
     ];
     this.tiles['castle_battlement'] = createPixelCanvas(16, 16, battlementRows, castleMap);
+
+    // Castle Top Small Flag (Rising on castle tower upon level clear)
+    const castleFlagMap: Record<string, string> = {
+      '.': 'transparent',
+      'G': COLORS.PIPE_LIGHT_GREEN,
+      'B': COLORS.BLACK
+    };
+    const castleFlagRows = [
+      "B.......",
+      "BGGGG...",
+      "BGGGGGG.",
+      "BGGGGG..",
+      "BGG.....",
+      "B.......",
+      "B.......",
+      "B......."
+    ];
+    this.tiles['castle_flag'] = createPixelCanvas(8, 8, castleFlagRows, castleFlagMap);
   }
 
   // -------------------------------------------------------------
@@ -878,6 +901,97 @@ export class SpriteSheet {
     this.marioFire['crouch'] = createPixelCanvas(16, 32, superCrouch, fireMap);
     this.marioFire['skid'] = createPixelCanvas(16, 32, superSkid, fireMap);
     this.marioFire['flag'] = this.marioFire['idle'];
+
+    // Fire Mario Throw Frame (Arm extended)
+    const superThrow = [
+      ".....RRRRR......",
+      "....RRRRRRRRR...",
+      "....BBBSSBS.....",
+      "...BSBSSSBSSS...",
+      "...BSBBSSSBSSS..",
+      "...BBSBSSBSSSS..",
+      ".....SSSSSSSS...",
+      "....RRBRRR......",
+      "...RRRBRRBRRR...",
+      "..RRRRBBBBRRRRSS",
+      "..SSRBBYBBRSSSSS",
+      "..SSSBBBBBBSSSSS",
+      "..SSBBBBBBBBSSSS",
+      "....BBBBBBBB....",
+      "....BB....BB....",
+      "....RRBRRR......",
+      "...RRRBRRBRRR...",
+      "..RRRRBBBBRRRR..",
+      "..SSRBBYBBRSSS..",
+      "..SSSBBBBBBSSS..",
+      "..SSBBBBBBBBSS..",
+      "....BBBBBBBB....",
+      "....BB....BB....",
+      "....BB....BB....",
+      "....BB....BB....",
+      "....BB....BB....",
+      "....BB....BB....",
+      "...BBB....BBB...",
+      "..BBBB....BBBB..",
+      "..BBBB....BBBB..",
+      "..BBBB....BBBB..",
+      "................"
+    ];
+    this.marioFire['throw'] = createPixelCanvas(16, 32, superThrow, fireMap);
+
+    // 4. LUIGI (Classic 1985 NES 2-Player: Green hat/shirt, White overalls)
+    const luigiSmallMap: Record<string, string> = {
+      '.': 'transparent',
+      'R': COLORS.PIPE_MID_GREEN,
+      'B': COLORS.WHITE,
+      'S': COLORS.MARIO_SKIN
+    };
+    this.luigiSmall['idle'] = createPixelCanvas(16, 16, smallIdle, luigiSmallMap);
+    this.luigiSmall['walk1'] = createPixelCanvas(16, 16, smallWalk1, luigiSmallMap);
+    this.luigiSmall['walk2'] = createPixelCanvas(16, 16, smallWalk2, luigiSmallMap);
+    this.luigiSmall['walk3'] = createPixelCanvas(16, 16, smallWalk3, luigiSmallMap);
+    this.luigiSmall['jump'] = createPixelCanvas(16, 16, smallJump, luigiSmallMap);
+    this.luigiSmall['skid'] = createPixelCanvas(16, 16, smallSkid, luigiSmallMap);
+    this.luigiSmall['die'] = createPixelCanvas(16, 16, smallDie, luigiSmallMap);
+    this.luigiSmall['flag'] = createPixelCanvas(16, 16, smallFlag, luigiSmallMap);
+
+    const luigiSuperMap: Record<string, string> = {
+      '.': 'transparent',
+      'R': COLORS.PIPE_MID_GREEN,
+      'B': COLORS.WHITE,
+      'S': COLORS.MARIO_SKIN
+    };
+    this.luigiSuper['idle'] = createPixelCanvas(16, 32, superIdle, luigiSuperMap);
+    this.luigiSuper['walk1'] = createPixelCanvas(16, 32, superWalk1, luigiSuperMap);
+    this.luigiSuper['walk2'] = createPixelCanvas(16, 32, superWalk2, luigiSuperMap);
+    this.luigiSuper['walk3'] = createPixelCanvas(16, 32, superWalk1, luigiSuperMap);
+    this.luigiSuper['jump'] = createPixelCanvas(16, 32, superJump, luigiSuperMap);
+    this.luigiSuper['crouch'] = createPixelCanvas(16, 32, superCrouch, luigiSuperMap);
+    this.luigiSuper['skid'] = createPixelCanvas(16, 32, superSkid, luigiSuperMap);
+    this.luigiSuper['flag'] = this.luigiSuper['idle'];
+    this.luigiSuper['throw'] = createPixelCanvas(16, 32, superThrow, luigiSuperMap);
+
+    this.luigiFire = this.marioFire; // Fire Luigi shares Fire Mario palette
+
+    // Title Screen Mushroom Cursor (8x8)
+    const cursorMap: Record<string, string> = {
+      '.': 'transparent',
+      'R': COLORS.MUSHROOM_RED,
+      'W': COLORS.WHITE,
+      'B': COLORS.BLACK,
+      'S': COLORS.MARIO_SKIN
+    };
+    const cursorRows = [
+      "...RR...",
+      ".RRWWRR.",
+      "RWWWWWRR",
+      "RWWWWWRR",
+      "RRRRRRRR",
+      ".SSSSSS.",
+      "..SSSS..",
+      "........"
+    ];
+    this.ui['mushroom_cursor'] = createPixelCanvas(8, 8, cursorRows, cursorMap);
   }
 
   // -------------------------------------------------------------
@@ -1041,6 +1155,73 @@ export class SpriteSheet {
     this.enemies['koopa_walk2'] = createPixelCanvas(16, 24, koopaWalk2, koopaMap);
     this.enemies['koopa_shell'] = createPixelCanvas(16, 16, koopaShellRows, koopaMap);
     this.enemies['koopa_dead'] = flipCanvasV(this.enemies['koopa_shell']);
+
+    // 3. Piranha Plant (16x24, 2 Frames: Open mouth & Closed mouth)
+    const piranhaMap: Record<string, string> = {
+      '.': 'transparent',
+      'B': COLORS.BLACK,
+      'G': COLORS.PIPE_MID_GREEN,
+      'L': COLORS.PIPE_LIGHT_GREEN,
+      'D': COLORS.PIPE_DARK_GREEN,
+      'W': COLORS.WHITE
+    };
+
+    const piranha0 = [
+      "......GGGG......",
+      ".....GGGGGG.....",
+      "....GGWWWWGG....",
+      "...GGWGGGGWGG...",
+      "...GGWGGGGWGG...",
+      "..GGWWWWWWWWGG..",
+      "..GGWWWWWWWWGG..",
+      "..GGW.WWWW.WGG..",
+      "..GGW......WGG..",
+      "...GGWWWWWWGG...",
+      "....GGGGGGGG....",
+      ".....GGGGGG.....",
+      "......GGGG......",
+      ".......GG.......",
+      "......GGGG......",
+      ".....GGGGGG.....",
+      ".....GGGGGG.....",
+      "......GGGG......",
+      ".......GG.......",
+      ".......GG.......",
+      ".......GG.......",
+      ".......GG.......",
+      ".......GG.......",
+      ".......GG......."
+    ];
+
+    const piranha1 = [
+      "......GGGG......",
+      ".....GGGGGG.....",
+      "....GGWWWWGG....",
+      "...GGWGGGGWGG...",
+      "...GGWGGGGWGG...",
+      "..GGWWWWWWWWGG..",
+      "..GGWWWWWWWWGG..",
+      "..GGWWWWWWWWGG..",
+      "..GGWWWWWWWWGG..",
+      "...GGWWWWWWGG...",
+      "....GGGGGGGG....",
+      ".....GGGGGG.....",
+      "......GGGG......",
+      ".......GG.......",
+      "......GGGG......",
+      ".....GGGGGG.....",
+      ".....GGGGGG.....",
+      "......GGGG......",
+      ".......GG.......",
+      ".......GG.......",
+      ".......GG.......",
+      ".......GG.......",
+      ".......GG.......",
+      ".......GG......."
+    ];
+
+    this.enemies['piranha_0'] = createPixelCanvas(16, 24, piranha0, piranhaMap);
+    this.enemies['piranha_1'] = createPixelCanvas(16, 24, piranha1, piranhaMap);
   }
 
   // -------------------------------------------------------------

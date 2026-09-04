@@ -1,6 +1,7 @@
 // Visual Particles & Floating Score Text
 import { SpriteSheet } from '../graphics/SpriteSheet';
 import { GRAVITY } from '../constants';
+import { NESAudio } from '../audio/NESAudio';
 
 export interface IParticle {
   x: number;
@@ -168,5 +169,44 @@ export class Fireball implements IParticle {
     if (img) {
       ctx.drawImage(img, Math.round(this.x - cameraX), Math.round(this.y));
     }
+  }
+}
+
+// 6. Castle Fireworks Particle
+export class Firework implements IParticle {
+  public isDead = false;
+  public vx = 0;
+  public vy = 0;
+  private radius = 2;
+  private life = 28;
+
+  constructor(public x: number, public y: number) {
+    NESAudio.playFirework();
+  }
+
+  update() {
+    this.radius += 0.8;
+    this.life--;
+    if (this.life <= 0) {
+      this.isDead = true;
+    }
+  }
+
+  render(ctx: CanvasRenderingContext2D, cameraX: number) {
+    const px = Math.round(this.x - cameraX);
+    const py = Math.round(this.y);
+    const colors = ['#ffffff', '#fcb000', '#d82800'];
+    const col = colors[Math.floor(this.life / 4) % colors.length];
+
+    ctx.save();
+    ctx.fillStyle = col;
+    // 8 radial sparks
+    for (let i = 0; i < 8; i++) {
+      const angle = (i * Math.PI) / 4;
+      const sx = px + Math.cos(angle) * this.radius;
+      const sy = py + Math.sin(angle) * this.radius;
+      ctx.fillRect(Math.round(sx), Math.round(sy), 2, 2);
+    }
+    ctx.restore();
   }
 }

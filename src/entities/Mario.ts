@@ -13,7 +13,8 @@ import {
   JUMP_IMPULSE_WALK,
   JUMP_IMPULSE_RUN,
   JUMP_HOLD_MAX_FRAMES,
-  MarioForm
+  MarioForm,
+  Character
 } from '../constants';
 import { SpriteSheet, flipCanvasH } from '../graphics/SpriteSheet';
 import { InputManager } from '../input/InputManager';
@@ -32,12 +33,14 @@ export class Mario {
   public vy = 0;
 
   // State
+  public character: Character = Character.MARIO;
   public form: MarioForm = MarioForm.SMALL;
   public isGrounded = false;
   public isJumping = false;
   public isSkidding = false;
   public isCrouching = false;
   public facingRight = true;
+  public throwTimer = 0;
 
   // Jump Hold tracking
   private jumpHoldTimer = 0;
@@ -321,11 +324,16 @@ export class Mario {
       this.walkFrame = (Math.floor(this.animTimer) % 3) + 1;
     }
 
+    if (this.throwTimer > 0) {
+      this.throwTimer--;
+    }
+
     // Fireball throw (Fire Mario)
     if (this.form === MarioForm.FIRE && input.runPressed && onShootFireball) {
       const dir = this.facingRight ? 1 : -1;
       onShootFireball(this.x + (this.facingRight ? 14 : -6), this.y + 12, dir);
       NESAudio.playFireball();
+      this.throwTimer = 8;
     }
 
     // Pit death check
@@ -407,21 +415,34 @@ export class Mario {
       return;
     }
 
+    const isLuigi = this.character === Character.LUIGI;
+    const smallSprites = isLuigi ? SpriteSheet.luigiSmall : SpriteSheet.marioSmall;
+    const superSprites = isLuigi ? SpriteSheet.luigiSuper : SpriteSheet.marioSuper;
+    const fireSprites = isLuigi ? SpriteSheet.luigiFire : SpriteSheet.marioFire;
+
     // Death frame
     if (this.isDead) {
-      const img = SpriteSheet.marioSmall['die'];
+      const img = smallSprites['die'];
       if (img) ctx.drawImage(img, Math.round(this.x - cameraX), Math.round(this.y));
       return;
     }
 
     // Transformation flashing
-    let currentSprites = SpriteSheet.marioSmall;
+    let currentSprites = smallSprites;
     if (this.isTransforming && Math.floor(this.transformTimer / 4) % 2 === 0) {
-      currentSprites = SpriteSheet.marioSuper;
+      currentSprites = superSprites;
     } else if (this.form === MarioForm.SUPER) {
-      currentSprites = SpriteSheet.marioSuper;
+      currentSprites = superSprites;
     } else if (this.form === MarioForm.FIRE) {
-      currentSprites = SpriteSheet.marioFire;
+      currentSprites = fireSprites;
+    }
+
+    // Starman 4-stage color cycling
+    if (this.isStarman) {
+      const cycle = Math.floor(this.starTimer / 4) % 4;
+      if (cycle === 1) currentSprites = fireSprites;
+      else if (cycle === 2) currentSprites = isLuigi ? SpriteSheet.marioSuper : SpriteSheet.luigiSuper;
+      else if (cycle === 3) currentSprites = superSprites;
     }
 
     // Determine current pose
@@ -429,6 +450,8 @@ export class Mario {
 
     if (this.isOnFlagPole) {
       spriteName = 'flag';
+    } else if (this.throwTimer > 0 && (this.form === MarioForm.FIRE || this.form === MarioForm.SUPER)) {
+      spriteName = 'throw';
     } else if (!this.isGrounded) {
       spriteName = 'jump';
     } else if (this.isCrouching) {

@@ -10,13 +10,15 @@ export class InputManager {
   public up = false;
   public down = false;
   public jump = false;       // A button (Z / K / Space)
-  public run = false;        // B button (X / J / Shift)
+  public run = false;        // B button (X / J)
   public start = false;      // Start button (Enter)
+  public select = false;     // Select button (Shift / Tab)
 
   // Edge detection
   public jumpPressed = false;
   public runPressed = false;
   public startPressed = false;
+  public selectPressed = false;
 
   private onFirstInteractionCallback: (() => void) | null = null;
   private hasInteracted = false;
@@ -78,23 +80,28 @@ export class InputManager {
     this.down = isDown(['ArrowDown', 'KeyS']);
 
     const currentJump = isDown(['KeyZ', 'KeyK', 'Space']);
-    const currentRun = isDown(['KeyX', 'KeyJ', 'ShiftLeft', 'ShiftRight']);
+    const currentRun = isDown(['KeyX', 'KeyJ']);
     const currentStart = isDown(['Enter']);
+    const currentSelect = isDown(['ShiftLeft', 'ShiftRight', 'Tab']);
 
     const prevJump = this.prevKeys['jump'] || false;
     const prevRun = this.prevKeys['run'] || false;
     const prevStart = this.prevKeys['start'] || false;
+    const prevSelect = this.prevKeys['select'] || false;
 
     this.jumpPressed = currentJump && !prevJump;
     this.runPressed = currentRun && !prevRun;
     this.startPressed = currentStart && !prevStart;
+    this.selectPressed = currentSelect && !prevSelect;
 
     this.jump = currentJump;
     this.run = currentRun;
     this.start = currentStart;
+    this.select = currentSelect;
 
     this.prevKeys['jump'] = currentJump;
     this.prevKeys['run'] = currentRun;
     this.prevKeys['start'] = currentStart;
+    this.prevKeys['select'] = currentSelect;
   }
 }
