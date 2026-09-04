@@ -204,6 +204,7 @@ export class Game {
   private update() {
     this.input.update();
     this.frameCount++;
+    (window as any).__gameState = this.state;
 
     switch (this.state) {
       case GameState.TITLE:
