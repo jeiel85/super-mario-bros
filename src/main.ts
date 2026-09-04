@@ -697,12 +697,12 @@ export class Game {
 
     // Mario vs Enemies
     this.enemies.forEach(e => {
-      if (e.isDead || e.isFlipped) return;
+      if (e.isDead || e.isFlipped || e.isStomped) return;
 
       const overlapX = Math.min(this.mario.x + this.mario.width, e.x + e.width) - Math.max(this.mario.x, e.x);
       const overlapY = Math.min(this.mario.y + this.mario.height, e.y + e.height) - Math.max(this.mario.y, e.y);
 
-      if (overlapX > 4 && overlapY > 4) {
+      if (overlapX > 2 && overlapY > 0) {
         if (this.mario.isStarman) {
           e.flipDie();
           this.hud.addScore(200);
@@ -710,12 +710,22 @@ export class Game {
           return;
         }
 
-        const isFallingOntoEnemy = this.mario.vy > 0 && this.mario.y + this.mario.height - this.mario.vy <= e.y + 10;
+        // NES Stomp Rule:
+        // 1) Mario was descending/falling (vy > 0 or prevVy > 0 while in air) and feet were at/above enemy top half
+        // 2) OR Mario's feet are within the upper half of the enemy
+        const wasDescending = this.mario.vy > 0 || (this.mario.prevVy > 0 && this.mario.wasInAir);
+        const feetAbove = (this.mario.y + this.mario.height - Math.max(0, this.mario.prevVy)) <= (e.y + 12);
+        const inTopHalf = (this.mario.y + this.mario.height) <= (e.y + 10);
+
+        const isFallingOntoEnemy = (wasDescending && feetAbove) || inTopHalf;
 
         if (isFallingOntoEnemy) {
           const didStomp = e.stomp(score => this.particles.push(score));
           if (didStomp) {
-            this.mario.vy = -3.2; // Bounce off enemy
+            // Authentic NES bounce: hold jump button for super high bounce, release for short hop
+            this.mario.vy = this.input.jump ? -4.5 : -2.8;
+            this.mario.y = e.y - this.mario.height;
+            this.mario.isGrounded = false;
             this.hud.addScore(100);
           } else {
             // Harmed by spiked enemy (Spiny)

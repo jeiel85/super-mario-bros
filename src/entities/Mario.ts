@@ -31,6 +31,8 @@ export class Mario {
   // Velocity
   public vx = 0;
   public vy = 0;
+  public prevVy = 0;
+  public wasInAir = false;
 
   // State
   public character: Character = Character.MARIO;
@@ -331,6 +333,8 @@ export class Mario {
     this.resolveHorizontalCollision(tiles);
 
     // Vertical Move & Tile Collision
+    this.prevVy = this.vy;
+    this.wasInAir = !this.isGrounded;
     this.y += this.vy;
     this.resolveVerticalCollision(tiles, onHitBlock);
 
