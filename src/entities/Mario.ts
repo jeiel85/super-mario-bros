@@ -16,7 +16,7 @@ import {
   MarioForm,
   Character
 } from '../constants';
-import { SpriteSheet, flipCanvasH } from '../graphics/SpriteSheet';
+import { SpriteSheet } from '../graphics/SpriteSheet';
 import { InputManager } from '../input/InputManager';
 import { NESAudio } from '../audio/NESAudio';
 import { SkidSmoke } from './Particle';
@@ -481,13 +481,18 @@ export class Mario {
     let img = currentSprites[spriteName] || currentSprites['idle'];
     if (!img) return;
 
-    if (!this.facingRight && spriteName !== 'skid') {
-      img = flipCanvasH(img);
-    } else if (this.facingRight && spriteName === 'skid') {
-      // Skid sprite naturally faces left
-      img = flipCanvasH(img);
-    }
+    const drawX = Math.round(this.x - cameraX);
+    const drawY = Math.round(this.y);
+    const isFlip = (!this.facingRight && spriteName !== 'skid') || (this.facingRight && spriteName === 'skid');
 
-    ctx.drawImage(img, Math.round(this.x - cameraX), Math.round(this.y));
+    if (isFlip) {
+      ctx.save();
+      ctx.translate(drawX + img.width, drawY);
+      ctx.scale(-1, 1);
+      ctx.drawImage(img, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.drawImage(img, drawX, drawY);
+    }
   }
 }

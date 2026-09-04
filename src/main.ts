@@ -21,6 +21,7 @@ import { World1_1, EnemySpawn, SceneryItem } from './level/World1_1';
 import { SMB1LevelDecoder, LevelTheme } from './level/SMB1LevelDecoder';
 import { Bowser } from './entities/Bowser';
 import { Firebar, Podoboo, Retainer } from './entities/CastleHazards';
+import { Autopilot } from './ai/Autopilot';
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -28,6 +29,7 @@ export class Game {
   private input: InputManager;
   private hud: HUD;
   private renderer: Renderer;
+  public autopilot: Autopilot = new Autopilot();
 
   private state: GameState = GameState.TITLE;
   private stateTimer = 0;
@@ -231,6 +233,36 @@ export class Game {
       });
     }
 
+    const btnAutopilot = document.getElementById('btn-autopilot');
+    const updateAutopilotUI = (on: boolean) => {
+      if (btnAutopilot) {
+        btnAutopilot.textContent = on ? '🤖 AUTO PLAY: ON' : '🤖 AUTO PLAY: OFF';
+        btnAutopilot.classList.toggle('active', on);
+      }
+    };
+
+    if (btnAutopilot) {
+      btnAutopilot.addEventListener('click', () => {
+        const on = this.autopilot.toggle();
+        updateAutopilotUI(on);
+        if (on && this.state === GameState.TITLE) {
+          NESAudio.unlock();
+          this.startLevel();
+        }
+      });
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyP' || e.code === 'KeyO') {
+        const on = this.autopilot.toggle();
+        updateAutopilotUI(on);
+        if (on && this.state === GameState.TITLE) {
+          NESAudio.unlock();
+          this.startLevel();
+        }
+      }
+    });
+
     const btnReset = document.getElementById('btn-reset');
     if (btnReset) {
       btnReset.addEventListener('click', () => {
@@ -248,6 +280,25 @@ export class Game {
   // -------------------------------------------------------------
   private update() {
     this.input.update();
+
+    // Autopilot AI Controller
+    this.autopilot.update(
+      this.input,
+      this.state,
+      this.mario,
+      this.isUnderground ? this.ugTiles : this.tiles,
+      this.enemies,
+      this.piranhas,
+      this.bowser,
+      this.firebars,
+      this.podoboos,
+      this.cameraX,
+      this.hasAxe,
+      this.axeX,
+      this.flagPoleX,
+      this.theme
+    );
+
     this.frameCount++;
     (window as any).__gameState = this.state;
     (window as any).__currentWorld = `${this.currentWorld}-${this.currentStage}`;
@@ -935,6 +986,15 @@ export class Game {
 
     // Render In-game HUD or Dialog Overlays
     this.hud.render(this.ctx, this.state, this.isPeach);
+
+    // Render Autopilot retro badge
+    if (this.autopilot.enabled) {
+      this.ctx.save();
+      this.ctx.font = '8px "Press Start 2P", monospace';
+      this.ctx.fillStyle = '#00e676';
+      this.ctx.fillText('🤖 AUTO-PLAY', 130, 232);
+      this.ctx.restore();
+    }
   }
 }
 

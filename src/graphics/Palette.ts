@@ -22,7 +22,7 @@ export const COLORS = {
 
   // Mario Small/Super
   MARIO_RED: "#b53120",
-  MARIO_BROWN: "#6b6d00",
+  MARIO_BROWN: "#6c0600",
   MARIO_SKIN: "#f7d8a5",
 
   // Mario Fire
