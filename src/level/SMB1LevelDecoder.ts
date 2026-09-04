@@ -41,6 +41,7 @@ export interface DecodedLevel {
   isPeach: boolean;
   scenery: SceneryItem[];
   warpZonePipes?: Array<{ pipeX: number; targetWorld: number }>;
+  exitX: number;
 }
 
 export class SMB1LevelDecoder {
@@ -492,6 +493,15 @@ export class SMB1LevelDecoder {
 
     const isCastle = theme === 'castle';
 
+    let exitX = 0;
+    if (!isCastle && flagPoleX === 0) {
+      if (worldNum === 1 && stageNum === 2) exitX = 187 * TILE_SIZE;
+      else if (worldNum === 2 && stageNum === 2) exitX = 189 * TILE_SIZE;
+      else if (worldNum === 4 && stageNum === 2) exitX = 215 * TILE_SIZE;
+      else if (worldNum === 7 && stageNum === 2) exitX = 189 * TILE_SIZE;
+      else exitX = (width - 15) * TILE_SIZE;
+    }
+
     return {
       world: `${worldNum}-${stageNum}`,
       worldNum,
@@ -518,7 +528,8 @@ export class SMB1LevelDecoder {
       retainerX: retainerX || (hasAxe ? axeX + 96 : 0),
       isPeach,
       scenery,
-      warpZonePipes
+      warpZonePipes,
+      exitX
     };
   }
 }

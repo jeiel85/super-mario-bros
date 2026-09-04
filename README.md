@@ -77,6 +77,9 @@ npm run dev
 
 # 프로덕션 빌드
 npm run build
+
+# 32개 전 스테이지 헤드리스 브라우저 무결성 자동 검증 (Playwright)
+npm test
 ```
 
 ---

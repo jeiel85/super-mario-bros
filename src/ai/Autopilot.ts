@@ -36,7 +36,8 @@ export class Autopilot {
     hasAxe: boolean,
     axeX: number,
     flagPoleX: number,
-    theme: string
+    theme: string,
+    exitX = 0
   ) {
     if (!this.enabled) return;
 
@@ -210,9 +211,13 @@ export class Autopilot {
       }
     }
 
-    // 10. Flagpole High Leap
+    // 10. Flagpole & Sublevel Exit High Leap
     if (flagPoleX > 0 && Math.abs(flagPoleX - mario.x) < 40 && mario.isGrounded) {
       this.triggerJump(input, 30);
+      return;
+    }
+    if (exitX > 0 && Math.abs(exitX - mario.x) < 40 && mario.isGrounded) {
+      this.triggerJump(input, 26);
       return;
     }
   }

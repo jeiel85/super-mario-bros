@@ -40,28 +40,30 @@ export class Game {
   public currentStage = 1;
 
   // Level Environment & Data
-  private theme: LevelTheme = 'overworld';
+  public theme: LevelTheme = 'overworld';
   private isUnderground = false;
-  private tiles: number[][] = [];
-  private enemySpawns: EnemySpawn[] = [];
-  private scenery: SceneryItem[] = [];
-  private flagPoleX = 198 * TILE_SIZE;
-  private castleX = 202 * TILE_SIZE;
+  public tiles: number[][] = [];
+  public enemySpawns: EnemySpawn[] = [];
+  public scenery: SceneryItem[] = [];
+  public flagPoleX = 198 * TILE_SIZE;
+  public castleX = 202 * TILE_SIZE;
+  public exitX = 0;
+  public warpZonePipes: Array<{ pipeX: number; targetWorld: number }> = [];
 
   // Castle Specifics
-  private isCastle = false;
-  private hasAxe = false;
-  private axeX = 0;
-  private bridgeStartX = 0;
-  private bridgeEndX = 0;
-  private isPeach = false;
+  public isCastle = false;
+  public hasAxe = false;
+  public axeX = 0;
+  public bridgeStartX = 0;
+  public bridgeEndX = 0;
+  public isPeach = false;
 
   // Active Entities
-  private mario: Mario;
-  private bowser: Bowser | null = null;
-  private firebars: Firebar[] = [];
-  private podoboos: Podoboo[] = [];
-  private retainer: Retainer | null = null;
+  public mario: Mario;
+  public bowser: Bowser | null = null;
+  public firebars: Firebar[] = [];
+  public podoboos: Podoboo[] = [];
+  public retainer: Retainer | null = null;
   private enemies: Enemy[] = [];
   private piranhas: PiranhaPlant[] = [];
   private items: Item[] = [];
@@ -131,7 +133,7 @@ export class Game {
   }
 
   // Setup Stage (World 1-1 to World 8-4)
-  private initLevel(worldNum = this.currentWorld, stageNum = this.currentStage) {
+  public initLevel(worldNum = this.currentWorld, stageNum = this.currentStage) {
     this.currentWorld = worldNum;
     this.currentStage = stageNum;
 
@@ -149,6 +151,8 @@ export class Game {
     this.isPeach = decoded.isPeach;
     this.bridgeStartX = decoded.bridgeStartX;
     this.bridgeEndX = decoded.bridgeEndX;
+    this.exitX = decoded.exitX || 0;
+    this.warpZonePipes = decoded.warpZonePipes || [];
 
     this.piranhas = decoded.piranhas.map(p => new PiranhaPlant(p.pipeX, p.pipeTopY));
     this.firebars = decoded.firebars.map(f => new Firebar(f.tileX, f.tileY, f.length, f.clockwise));
@@ -181,7 +185,7 @@ export class Game {
   }
 
   // Start Level Playing
-  private startLevel() {
+  public startLevel() {
     this.initLevel(this.currentWorld, this.currentStage);
     this.mario.character = this.hud.selectedPlayer === 2 ? Character.LUIGI : Character.MARIO;
     const startY = this.theme === 'underwater' ? 80 : 192;
@@ -296,12 +300,14 @@ export class Game {
       this.hasAxe,
       this.axeX,
       this.flagPoleX,
-      this.theme
+      this.theme,
+      this.exitX
     );
 
     this.frameCount++;
     (window as any).__gameState = this.state;
     (window as any).__currentWorld = `${this.currentWorld}-${this.currentStage}`;
+    (window as any).__game = this;
 
     switch (this.state) {
       case GameState.TITLE:
@@ -576,8 +582,31 @@ export class Game {
 
     // 12. Flagpole Trigger
     if (this.flagPoleX > 0 && !this.isUnderground && !this.isCastle) {
-      if (this.mario.x >= this.flagPoleX - 4 && this.mario.x <= this.flagPoleX + 16) {
+      if (this.mario.x + this.mario.width >= this.flagPoleX && this.mario.x <= this.flagPoleX + 16) {
         this.triggerFlagpole();
+        return;
+      }
+    }
+
+    // 13. Sublevel Exit Pipe / Passage Trigger (1-2, 2-2, 4-2, 7-2)
+    if (this.exitX > 0 && !this.isCastle && this.flagPoleX === 0) {
+      if (this.mario.x + this.mario.width >= this.exitX) {
+        this.triggerLevelExit();
+        return;
+      }
+    }
+
+    // 14. Warp Zone Pipe Entrance (down into warp pipe)
+    if (this.input.down && this.mario.isGrounded && this.warpZonePipes.length > 0) {
+      const warp = this.warpZonePipes.find(
+        w => Math.abs(this.mario.x - w.pipeX) < 18 && Math.abs(this.mario.y - 10 * TILE_SIZE) < 24
+      );
+      if (warp) {
+        NESAudio.playPipe();
+        this.currentWorld = warp.targetWorld;
+        this.currentStage = 1;
+        this.startLevel();
+        return;
       }
     }
   }
@@ -821,17 +850,29 @@ export class Game {
   }
 
   private updateCastleWalkSequence() {
-    this.mario.x += 1.0;
-    if (this.mario.x - this.cameraX > 110) {
-      this.cameraX = Math.round(this.mario.x - 110);
-    }
-    const targetX = this.retainer ? this.retainer.x - 30 : this.axeX + 64;
+    if (this.isCastle) {
+      // Castle Chamber: Mario walks past collapsed bridge to Toad or Princess Peach
+      this.mario.x += 1.0;
+      if (this.mario.x - this.cameraX > 110) {
+        this.cameraX = Math.round(this.mario.x - 110);
+      }
+      const targetX = this.retainer ? this.retainer.x - 30 : this.axeX + 64;
 
-    if (this.mario.x >= targetX) {
-      this.mario.vx = 0;
-      this.stateTimer = 0;
-      this.state = this.isPeach ? GameState.GAME_VICTORY : GameState.CASTLE_CLEAR;
-      NESAudio.playVictoryFanfare();
+      if (this.mario.x >= targetX) {
+        this.mario.vx = 0;
+        this.stateTimer = 0;
+        this.state = this.isPeach ? GameState.GAME_VICTORY : GameState.CASTLE_CLEAR;
+        NESAudio.playVictoryFanfare();
+      }
+    } else {
+      // Overworld: Mario walks into the small end castle door
+      this.mario.x += 1.2;
+      const doorX = this.castleX > 0 ? this.castleX + 16 : this.flagPoleX + 64;
+      if (this.mario.x >= doorX) {
+        this.mario.vx = 0;
+        this.stateTimer = 0;
+        this.state = GameState.LEVEL_CLEAR;
+      }
     }
   }
 
@@ -851,6 +892,17 @@ export class Game {
       this.hud.startingStage = 1;
       this.state = GameState.TITLE;
     }
+  }
+
+  private triggerLevelExit() {
+    if (this.state === GameState.LEVEL_CLEAR || this.state === GameState.CASTLE_WALK || this.state === GameState.CASTLE_CLEAR) return;
+    NESAudio.stopMusic();
+    NESAudio.playPipe();
+    NESAudio.playLevelClear();
+    this.mario.vx = 0;
+    this.mario.vy = 0;
+    this.state = GameState.LEVEL_CLEAR;
+    this.stateTimer = 0;
   }
 
   // -------------------------------------------------------------
@@ -915,8 +967,9 @@ export class Game {
     this.particles = this.particles.filter(p => !p.isDead);
 
     if (this.hud.timeLeft > 0) {
-      this.hud.timeLeft--;
-      this.hud.addScore(50);
+      const step = (this.input.startPressed || this.input.jumpPressed || this.input.runPressed || this.autopilot.enabled) ? Math.min(10, this.hud.timeLeft) : 1;
+      this.hud.timeLeft -= step;
+      this.hud.addScore(50 * step);
       if (this.hud.timeLeft % 2 === 0) {
         NESAudio.playCoin();
       }
@@ -933,14 +986,14 @@ export class Game {
       }
     } else {
       this.stateTimer++;
-      if (this.stateTimer >= 180) {
+      if (this.stateTimer >= 180 || ((this.input.startPressed || this.autopilot.enabled) && this.stateTimer >= 30)) {
         this.advanceStage();
       }
     }
   }
 
   // Advance to next stage (e.g. 1-1 -> 1-2 -> 1-3 -> 1-4 -> 2-1 ... -> 8-4)
-  private advanceStage() {
+  public advanceStage() {
     if (this.currentStage < 4) {
       this.currentStage++;
     } else {
