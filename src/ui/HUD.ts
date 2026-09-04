@@ -1,4 +1,4 @@
-// NES Classic HUD & Screen Overlays (Title, Lives, Game Over, In-game HUD)
+// NES Classic HUD & Screen Overlays (Title, Lives, Game Over, In-game HUD, Castle Ending)
 import { SpriteSheet } from '../graphics/SpriteSheet';
 import { GameState } from '../constants';
 
@@ -10,6 +10,10 @@ export class HUD {
   public lives = 3;
   public highScore = 10000;
   public selectedPlayer: 1 | 2 = 1;
+
+  // Starting stage selection for full 32 stages
+  public startingWorld = 1;
+  public startingStage = 1;
 
   private timerTick = 0;
   private coinAnimFrame = 0;
@@ -44,12 +48,12 @@ export class HUD {
     }
   }
 
-  public resetLevelTime() {
-    this.timeLeft = 400;
+  public resetLevelTime(initialTime = 400) {
+    this.timeLeft = initialTime;
     this.timerTick = 0;
   }
 
-  public render(ctx: CanvasRenderingContext2D, gameState: GameState) {
+  public render(ctx: CanvasRenderingContext2D, gameState: GameState, isPeach = false) {
     // Top banner is rendered in ALL states except TITLE
     if (gameState !== GameState.TITLE) {
       this.renderTopBanner(ctx);
@@ -67,6 +71,8 @@ export class HUD {
       ctx.font = '8px "Press Start 2P", monospace';
       ctx.fillText('PAUSE', 108, 120);
       ctx.restore();
+    } else if (gameState === GameState.CASTLE_CLEAR || gameState === GameState.GAME_VICTORY) {
+      this.renderCastleDialog(ctx, isPeach);
     }
   }
 
@@ -123,44 +129,49 @@ export class HUD {
     // Big Title Box
     ctx.fillStyle = '#d82800';
     ctx.font = '16px "Press Start 2P", monospace';
-    ctx.fillText('SUPER MARIO', 40, 72);
-    ctx.fillText('BROS.', 88, 94);
+    ctx.fillText('SUPER MARIO', 40, 68);
+    ctx.fillText('BROS.', 88, 90);
 
     // Subtitle
     ctx.font = '8px "Press Start 2P", monospace';
     ctx.fillStyle = '#fcb000';
-    ctx.fillText('★ 1985 NES WEB EDITION ★', 28, 120);
+    ctx.fillText('★ 32 STAGES ALL-IN-ONE ★', 24, 114);
 
     // Player Options
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('1 PLAYER GAME', 72, 148);
-    ctx.fillText('2 PLAYER GAME', 72, 164);
+    ctx.fillText('1 PLAYER GAME', 72, 138);
+    ctx.fillText('2 PLAYER GAME', 72, 152);
 
     // Mushroom Cursor (Movable via Shift / Select)
-    const cursorY = this.selectedPlayer === 1 ? 141 : 157;
+    const cursorY = this.selectedPlayer === 1 ? 131 : 145;
     const cursorImg = SpriteSheet.ui['mushroom_cursor'];
     if (cursorImg) {
       ctx.drawImage(cursorImg, 56, cursorY);
     }
 
+    // Stage Selector (< / > Left / Right Arrow keys)
+    ctx.fillStyle = '#00e8d8';
+    ctx.fillText(`STAGE: < WORLD ${this.startingWorld}-${this.startingStage} >`, 40, 172);
+
     // High Score
+    ctx.fillStyle = '#ffffff';
     const hiScoreStr = `TOP - ${this.highScore.toString().padStart(6, '0')}`;
-    ctx.fillText(hiScoreStr, 80, 184);
+    ctx.fillText(hiScoreStr, 80, 192);
 
     // Blinking Prompt
     if (Math.floor(Date.now() / 450) % 2 === 0) {
       ctx.fillStyle = '#fc9838';
-      ctx.fillText('PRESS ENTER TO START', 44, 204);
+      ctx.fillText('PRESS ENTER TO START', 44, 210);
     }
 
     // NES Nintendo Copyright
     ctx.fillStyle = '#ffffff';
-    ctx.fillText('©1985 NINTENDO', 68, 224);
+    ctx.fillText('©1985 NINTENDO', 68, 228);
 
     ctx.restore();
   }
 
-  // 3. START SCREEN ("WORLD 1-1 x 3")
+  // 3. START SCREEN ("WORLD X-Y x 3")
   private renderStartScreen(ctx: CanvasRenderingContext2D) {
     ctx.save();
     ctx.fillStyle = '#000000';
@@ -190,6 +201,29 @@ export class HUD {
     ctx.fillStyle = '#ffffff';
     ctx.font = '8px "Press Start 2P", monospace';
     ctx.fillText('GAME OVER', 88, 120);
+
+    ctx.restore();
+  }
+
+  // 5. CASTLE VICTORY DIALOG (Toad or Princess Peach)
+  private renderCastleDialog(ctx: CanvasRenderingContext2D, isPeach: boolean) {
+    ctx.save();
+    ctx.font = '8px "Press Start 2P", monospace';
+    ctx.fillStyle = '#ffffff';
+
+    const player = this.selectedPlayer === 2 ? 'LUIGI' : 'MARIO';
+    ctx.fillText(`THANK YOU ${player}!`, 64, 80);
+
+    if (!isPeach) {
+      ctx.fillText('BUT OUR PRINCESS IS IN', 40, 110);
+      ctx.fillText('ANOTHER CASTLE!', 68, 126);
+    } else {
+      ctx.fillStyle = '#fcb000';
+      ctx.fillText('YOUR QUEST IS OVER.', 52, 106);
+      ctx.fillText('WE PRESENT YOU A NEW QUEST.', 20, 122);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('PUSH BUTTON B TO SELECT WORLD', 12, 148);
+    }
 
     ctx.restore();
   }

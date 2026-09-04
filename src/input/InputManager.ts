@@ -19,6 +19,8 @@ export class InputManager {
   public runPressed = false;
   public startPressed = false;
   public selectPressed = false;
+  public leftPressed = false;
+  public rightPressed = false;
 
   private onFirstInteractionCallback: (() => void) | null = null;
   private hasInteracted = false;
@@ -88,11 +90,15 @@ export class InputManager {
     const prevRun = this.prevKeys['run'] || false;
     const prevStart = this.prevKeys['start'] || false;
     const prevSelect = this.prevKeys['select'] || false;
+    const prevLeft = this.prevKeys['left'] || false;
+    const prevRight = this.prevKeys['right'] || false;
 
     this.jumpPressed = currentJump && !prevJump;
     this.runPressed = currentRun && !prevRun;
     this.startPressed = currentStart && !prevStart;
     this.selectPressed = currentSelect && !prevSelect;
+    this.leftPressed = this.left && !prevLeft;
+    this.rightPressed = this.right && !prevRight;
 
     this.jump = currentJump;
     this.run = currentRun;
@@ -103,5 +109,7 @@ export class InputManager {
     this.prevKeys['run'] = currentRun;
     this.prevKeys['start'] = currentStart;
     this.prevKeys['select'] = currentSelect;
+    this.prevKeys['left'] = this.left;
+    this.prevKeys['right'] = this.right;
   }
 }

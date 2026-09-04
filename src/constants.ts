@@ -50,6 +50,22 @@ export enum TileType {
   HIDDEN_1UP = 19,
   COIN = 20,
   BRICK_MULTICOIN = 21,
+  BRIDGE = 22,
+  AXE = 23,
+  CHAIN = 24,
+  LAVA_TOP = 25,
+  CORAL = 26,
+  BRICK_MUSHROOM = 27,
+  BRICK_1UP = 28,
+  BRICK_STAR = 29,
+  BRICK_VINE = 30,
+  JUMPSPRING = 31,
+  CANNON_TOP = 32,
+  CANNON_BODY = 33,
+  TREE_TOP_LEFT = 34,
+  TREE_TOP_MID = 35,
+  TREE_TOP_RIGHT = 36,
+  TREE_STEM = 37,
 }
 
 // Game states
@@ -65,6 +81,8 @@ export enum GameState {
   LEVEL_CLEAR = 8,
   GAME_OVER = 9,
   PAUSED = 10,
+  CASTLE_CLEAR = 11,
+  GAME_VICTORY = 12,
 }
 
 // Mario forms

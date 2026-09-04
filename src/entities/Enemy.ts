@@ -1,10 +1,25 @@
-// Enemies: Goomba, Koopa Troopa, and Shell Physics
+// Enemies: Goomba, Koopa Troopa, Paratroopa, Buzzy Beetle, Hammer Bro,
+// Blooper, Cheep Cheep, Lakitu, Spiny, Bullet Bill, and Piranha Plant
 import { SpriteSheet, flipCanvasH } from '../graphics/SpriteSheet';
 import { TILE_SIZE, GRAVITY, TERMINAL_VELOCITY, SHELL_SPEED } from '../constants';
 import { NESAudio } from '../audio/NESAudio';
 import { FloatingScore } from './Particle';
+import { BowserHammer } from './Bowser';
 
-export type EnemyType = 'goomba' | 'koopa';
+export type EnemyType =
+  | 'goomba'
+  | 'koopa'
+  | 'red_koopa'
+  | 'paratroopa'
+  | 'red_paratroopa'
+  | 'buzzy_beetle'
+  | 'hammer_bro'
+  | 'blooper'
+  | 'cheep_cheep'
+  | 'flying_cheep'
+  | 'lakitu'
+  | 'spiny'
+  | 'bullet_bill';
 
 export class Enemy {
   public width = 16;
@@ -16,7 +31,7 @@ export class Enemy {
   public isStomped = false;
   private stompedTimer = 0;
 
-  // Koopa specific
+  // Shell physics (Koopa, Buzzy Beetle)
   public isShell = false;
   public isShellMoving = false;
   public shellComboCount = 0;
@@ -27,13 +42,34 @@ export class Enemy {
   private animTimer = 0;
   private animFrame = 0;
 
+  // Special enemy states
+  private hammerTimer = 0;
+  private lakituTimer = 0;
+  private jumpTimer = 0;
+  private baseY = 0;
+  public hammers: BowserHammer[] = [];
+
   constructor(public type: EnemyType, public x: number, public y: number) {
-    if (type === 'koopa') {
-      this.height = 24; // Koopa is taller
+    this.baseY = y;
+    if (type === 'koopa' || type === 'red_koopa' || type === 'paratroopa' || type === 'red_paratroopa' || type === 'hammer_bro') {
+      this.height = 24;
+    }
+    if (type === 'flying_cheep') {
+      this.vy = -7.5;
+      this.vx = Math.random() < 0.5 ? -1.2 : 1.2;
+    }
+    if (type === 'bullet_bill') {
+      this.vx = -2.5;
     }
   }
 
-  update(tiles: number[][], cameraX: number, _onSpawnScore?: (score: FloatingScore) => void) {
+  update(
+    tiles: number[][],
+    cameraX: number,
+    playerX?: number,
+    onSpawnEnemy?: (e: Enemy) => void,
+    _onSpawnScore?: (score: FloatingScore) => void
+  ) {
     if (this.isDead) return;
 
     // Flipped death physics (arcs up and offscreen)
@@ -41,7 +77,7 @@ export class Enemy {
       this.x += this.vx;
       this.y += this.vy;
       this.vy += GRAVITY;
-      if (this.y > 250) {
+      if (this.y > 260) {
         this.isDead = true;
       }
       return;
@@ -57,7 +93,7 @@ export class Enemy {
     }
 
     // Only update if near camera viewport (NES active window)
-    if (this.x < cameraX - 32 || this.x > cameraX + 288) {
+    if (this.x < cameraX - 48 || this.x > cameraX + 300) {
       return;
     }
 
@@ -66,16 +102,107 @@ export class Enemy {
       this.animFrame = (this.animFrame + 1) % 2;
     }
 
-    // Gravity
+    // Specific enemy behavior
+    if (this.type === 'bullet_bill') {
+      this.x += this.vx;
+      if (this.x < cameraX - 40) this.isDead = true;
+      return;
+    }
+
+    if (this.type === 'flying_cheep') {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += GRAVITY * 0.4;
+      if (this.y > 250) this.isDead = true;
+      return;
+    }
+
+    if (this.type === 'blooper') {
+      // Blooper propels toward player in water
+      if (this.animTimer % 60 === 0) {
+        this.vy = -2.2;
+        if (playerX !== undefined) {
+          this.vx = playerX < this.x ? -0.8 : 0.8;
+        }
+      } else {
+        this.vy = Math.min(1.0, this.vy + 0.05);
+      }
+      this.x += this.vx;
+      this.y += this.vy;
+      return;
+    }
+
+    if (this.type === 'cheep_cheep') {
+      // Swimming fish
+      this.x += this.vx;
+      return;
+    }
+
+    if (this.type === 'lakitu') {
+      // Lakitu hovers near player at top of screen
+      if (playerX !== undefined) {
+        const targetX = playerX - 30;
+        this.x += (targetX - this.x) * 0.03;
+      }
+      this.lakituTimer++;
+      if (this.lakituTimer > 180 && onSpawnEnemy) {
+        this.lakituTimer = 0;
+        onSpawnEnemy(new Enemy('spiny', this.x, this.y + 12));
+      }
+      return;
+    }
+
+    if (this.type === 'hammer_bro') {
+      // Hammer Bro paces and throws hammers
+      this.hammerTimer++;
+      if (this.hammerTimer > 70) {
+        this.hammerTimer = 0;
+        const dirLeft = playerX !== undefined ? playerX < this.x : true;
+        this.hammers.push(new BowserHammer(this.x, this.y, dirLeft));
+      }
+      this.jumpTimer++;
+      if (this.jumpTimer > 160) {
+        this.jumpTimer = 0;
+        this.vy = -4.5; // Jump between rows
+      }
+    }
+
+    if (this.type === 'paratroopa') {
+      // Jumping paratroopa
+      if (this.vy === 0) {
+        this.vy = -3.8;
+      }
+    }
+
+    if (this.type === 'red_paratroopa') {
+      // Hovers vertically up and down
+      this.y = this.baseY + Math.sin(this.animTimer * 0.05) * 32;
+      return;
+    }
+
+    // Standard Gravity
     this.vy = Math.min(TERMINAL_VELOCITY, this.vy + GRAVITY);
 
     // Horizontal Movement & Collision
     this.x += this.vx;
     this.resolveHorizontalCollision(tiles);
 
+    // Red Koopa: turn around at ledge instead of falling into pit!
+    if (this.type === 'red_koopa' && !this.isShell) {
+      const checkX = this.vx < 0 ? Math.floor(this.x / TILE_SIZE) : Math.floor((this.x + this.width) / TILE_SIZE);
+      const groundY = Math.floor((this.y + this.height + 2) / TILE_SIZE);
+      if (tiles[groundY] && tiles[groundY][checkX] === 0) {
+        this.vx = -this.vx;
+      }
+    }
+
     // Vertical Movement & Collision
     this.y += this.vy;
     this.resolveVerticalCollision(tiles);
+
+    // Update hammers
+    this.hammers.forEach(h => h.update());
+    this.hammers = this.hammers.filter(h => !h.isDead);
 
     // Pit death
     if (this.y > 250) {
@@ -85,6 +212,10 @@ export class Enemy {
 
   // Stomp interaction from above
   public stomp(onSpawnScore: (score: FloatingScore) => void): boolean {
+    if (this.type === 'spiny') {
+      return false; // Spiny cannot be stomped! Mario takes damage!
+    }
+
     if (this.type === 'goomba') {
       this.isStomped = true;
       this.vx = 0;
@@ -92,25 +223,52 @@ export class Enemy {
       NESAudio.playStomp();
       onSpawnScore(new FloatingScore(this.x, this.y, '100'));
       return true;
-    } else if (this.type === 'koopa') {
+    }
+
+    if (this.type === 'paratroopa' || this.type === 'red_paratroopa') {
+      // Loses wings
+      this.type = this.type === 'paratroopa' ? 'koopa' : 'red_koopa';
+      NESAudio.playStomp();
+      onSpawnScore(new FloatingScore(this.x, this.y, '400'));
+      return true;
+    }
+
+    if (this.type === 'koopa' || this.type === 'red_koopa' || this.type === 'buzzy_beetle') {
       NESAudio.playStomp();
       if (!this.isShell) {
-        // Retreat into shell
         this.isShell = true;
         this.height = 16;
-        this.y += 8; // Adjust height down to 16
+        this.y += 8;
         this.vx = 0;
         this.isShellMoving = false;
         onSpawnScore(new FloatingScore(this.x, this.y, '100'));
         return true;
       } else if (this.isShell && this.isShellMoving) {
-        // Stop moving shell
         this.vx = 0;
         this.isShellMoving = false;
         onSpawnScore(new FloatingScore(this.x, this.y, '100'));
         return true;
       }
     }
+
+    if (this.type === 'hammer_bro') {
+      this.flipDie();
+      onSpawnScore(new FloatingScore(this.x, this.y, '1000'));
+      return true;
+    }
+
+    if (this.type === 'lakitu') {
+      this.flipDie();
+      onSpawnScore(new FloatingScore(this.x, this.y, '800'));
+      return true;
+    }
+
+    if (this.type === 'bullet_bill' || this.type === 'flying_cheep') {
+      this.flipDie();
+      onSpawnScore(new FloatingScore(this.x, this.y, '200'));
+      return true;
+    }
+
     return false;
   }
 
@@ -119,91 +277,111 @@ export class Enemy {
     if (!this.isShell) return;
     this.isShellMoving = true;
     this.vx = direction * SHELL_SPEED;
-    this.shellComboCount = 0;
     NESAudio.playKick();
     onSpawnScore(new FloatingScore(this.x, this.y, '400'));
   }
 
-  // Flipped death (from block below, starman, or sliding shell)
-  public flipDie(dir = 1) {
+  // Flip death (hit by shell, star, or block bump)
+  public flipDie() {
     this.isFlipped = true;
-    this.vx = dir * 1.5;
+    this.vx = (Math.random() < 0.5 ? -1 : 1) * 1.5;
     this.vy = -4.0;
     NESAudio.playKick();
   }
 
+  // Horizontal tile collision
   private resolveHorizontalCollision(tiles: number[][]) {
-    const h = this.isShell ? 16 : this.height;
-    const tileY1 = Math.floor(this.y / TILE_SIZE);
-    const tileY2 = Math.floor((this.y + h - 1) / TILE_SIZE);
+    const leftTile = Math.floor(this.x / TILE_SIZE);
+    const rightTile = Math.floor((this.x + this.width - 1) / TILE_SIZE);
+    const topTile = Math.floor(this.y / TILE_SIZE);
+    const bottomTile = Math.floor((this.y + this.height - 1) / TILE_SIZE);
 
-    if (this.vx > 0) {
-      const tileX = Math.floor((this.x + this.width) / TILE_SIZE);
-      if (this.isSolid(tiles, tileX, tileY1) || this.isSolid(tiles, tileX, tileY2)) {
-        this.x = tileX * TILE_SIZE - this.width;
+    for (let ty = topTile; ty <= bottomTile; ty++) {
+      if (!tiles[ty]) continue;
+      if (this.vx < 0 && this.isSolid(tiles[ty][leftTile])) {
+        this.x = (leftTile + 1) * TILE_SIZE;
         this.vx = -this.vx;
-        if (this.isShell && this.isShellMoving) {
-          NESAudio.playBlockBump();
-        }
-      }
-    } else if (this.vx < 0) {
-      const tileX = Math.floor(this.x / TILE_SIZE);
-      if (this.isSolid(tiles, tileX, tileY1) || this.isSolid(tiles, tileX, tileY2)) {
-        this.x = (tileX + 1) * TILE_SIZE;
+        if (this.isShell && this.isShellMoving) NESAudio.playBlockBump();
+        break;
+      } else if (this.vx > 0 && this.isSolid(tiles[ty][rightTile])) {
+        this.x = rightTile * TILE_SIZE - this.width;
         this.vx = -this.vx;
-        if (this.isShell && this.isShellMoving) {
-          NESAudio.playBlockBump();
-        }
+        if (this.isShell && this.isShellMoving) NESAudio.playBlockBump();
+        break;
       }
     }
   }
 
+  // Vertical tile collision
   private resolveVerticalCollision(tiles: number[][]) {
-    const h = this.isShell ? 16 : this.height;
-    const tileX1 = Math.floor(this.x / TILE_SIZE);
-    const tileX2 = Math.floor((this.x + this.width - 1) / TILE_SIZE);
+    const leftTile = Math.floor(this.x / TILE_SIZE);
+    const rightTile = Math.floor((this.x + this.width - 1) / TILE_SIZE);
+    const bottomTile = Math.floor((this.y + this.height) / TILE_SIZE);
 
-    if (this.vy > 0) {
-      const tileY = Math.floor((this.y + h) / TILE_SIZE);
-      if (this.isSolid(tiles, tileX1, tileY) || this.isSolid(tiles, tileX2, tileY)) {
-        this.y = tileY * TILE_SIZE - h;
-        this.vy = 0;
+    if (this.vy >= 0 && tiles[bottomTile]) {
+      for (let tx = leftTile; tx <= rightTile; tx++) {
+        if (this.isSolid(tiles[bottomTile][tx])) {
+          this.y = bottomTile * TILE_SIZE - this.height;
+          this.vy = 0;
+          break;
+        }
       }
     }
   }
 
-  private isSolid(tiles: number[][], tx: number, ty: number): boolean {
-    if (ty < 0 || ty >= tiles.length || tx < 0 || tx >= (tiles[0]?.length || 0)) return false;
-    const t = tiles[ty][tx];
-    return t !== 0 && t !== 13 && t !== 14 && t !== 16 && t !== 20;
+  private isSolid(tile: number): boolean {
+    return (
+      tile === 1 || // Ground
+      tile === 2 || // Brick
+      tile === 3 || // Question Coin
+      tile === 4 || // Question Mushroom
+      tile === 5 || // Question Star
+      tile === 6 || // Solid Block
+      (tile >= 7 && tile <= 12) || // Pipes
+      tile === 15 || // Castle Brick
+      tile === 18 || // Empty Block
+      tile === 21 || // Brick Multicoin
+      tile === 22 || // Bridge
+      tile === 27 ||
+      tile === 28 ||
+      tile === 29 ||
+      tile === 30 ||
+      tile === 31 ||
+      tile === 32 ||
+      tile === 33
+    );
   }
 
   render(ctx: CanvasRenderingContext2D, cameraX: number) {
     if (this.isDead) return;
 
-    let img: HTMLCanvasElement | null = null;
+    // Render hammers if any
+    this.hammers.forEach(h => h.render(ctx, cameraX));
 
-    if (this.type === 'goomba') {
-      if (this.isFlipped) {
-        img = SpriteSheet.enemies['goomba_dead'];
-      } else if (this.isStomped) {
-        img = SpriteSheet.enemies['goomba_flat'];
-      } else {
-        img = this.animFrame === 0 ? SpriteSheet.enemies['goomba_walk1'] : SpriteSheet.enemies['goomba_walk2'];
-      }
-    } else if (this.type === 'koopa') {
-      if (this.isFlipped) {
-        img = SpriteSheet.enemies['koopa_dead'];
-      } else if (this.isShell) {
-        img = SpriteSheet.enemies['koopa_shell'];
-      } else {
-        const baseImg = this.animFrame === 0 ? SpriteSheet.enemies['koopa_walk1'] : SpriteSheet.enemies['koopa_walk2'];
-        img = this.vx > 0 ? flipCanvasH(baseImg) : baseImg;
-      }
+    let img: HTMLCanvasElement | null = null;
+    const px = Math.round(this.x - cameraX);
+    const py = Math.round(this.y);
+
+    if (this.isFlipped) {
+      const base = SpriteSheet.enemies[`${this.type}_dead`] || SpriteSheet.enemies['goomba_dead'];
+      if (base) img = base;
+    } else if (this.isStomped && this.type === 'goomba') {
+      img = SpriteSheet.enemies['goomba_flat'];
+    } else if (this.isShell) {
+      const shellKey = this.type === 'buzzy_beetle' ? 'buzzy_shell' : 'koopa_shell';
+      img = SpriteSheet.enemies[shellKey] || SpriteSheet.enemies['koopa_shell'];
+    } else {
+      const walkKey = `${this.type}_walk${this.animFrame + 1}`;
+      const baseImg = SpriteSheet.enemies[walkKey] || SpriteSheet.enemies[`${this.type}_0`] || SpriteSheet.enemies['goomba_walk1'];
+      img = this.vx > 0 ? flipCanvasH(baseImg) : baseImg;
     }
 
     if (img) {
-      ctx.drawImage(img, Math.round(this.x - cameraX), Math.round(this.y));
+      ctx.drawImage(img, px, py);
+    } else {
+      // Fallback
+      ctx.fillStyle = this.type === 'buzzy_beetle' ? '#000088' : '#b84418';
+      ctx.fillRect(px, py, this.width, this.height);
     }
   }
 }

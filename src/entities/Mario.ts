@@ -55,6 +55,9 @@ export class Mario {
   public isStarman = false;
   public starTimer = 0;
 
+  // Underwater swimming mode
+  public isUnderwater = false;
+
   // Death
   public isDead = false;
   public deathTimer = 0;
@@ -281,28 +284,41 @@ export class Mario {
       }
     }
 
-    // Jump Initiation (A button pressed this frame)
-    if (input.jumpPressed && this.isGrounded && !this.isCrouching) {
-      const impulse = Math.abs(this.vx) > WALK_MAX_SPEED ? JUMP_IMPULSE_RUN : JUMP_IMPULSE_WALK;
-      this.vy = impulse;
-      this.isGrounded = false;
-      this.isJumping = true;
-      this.jumpHoldTimer = JUMP_HOLD_MAX_FRAMES;
-
-      if (this.form === MarioForm.SMALL) {
+    // Underwater Swimming Physics
+    if (this.isUnderwater) {
+      if (input.jumpPressed) {
+        this.vy = -2.8; // Swimming kick upward
         NESAudio.playJumpSmall();
-      } else {
-        NESAudio.playJumpSuper();
       }
-    }
-
-    // Variable Jump Height: Holding Jump Sustains Upward Momentum
-    if (input.jump && this.isJumping && this.jumpHoldTimer > 0) {
-      this.jumpHoldTimer--;
-      this.vy += JUMP_GRAVITY;
+      this.vy = Math.min(1.8, this.vy + GRAVITY * 0.35); // Slower fall in water
+      if (this.y < 16) {
+        this.y = 16;
+        if (this.vy < 0) this.vy = 0;
+      }
     } else {
-      this.isJumping = false;
-      this.vy = Math.min(TERMINAL_VELOCITY, this.vy + GRAVITY);
+      // Standard Jump Initiation (A button pressed this frame)
+      if (input.jumpPressed && this.isGrounded && !this.isCrouching) {
+        const impulse = Math.abs(this.vx) > WALK_MAX_SPEED ? JUMP_IMPULSE_RUN : JUMP_IMPULSE_WALK;
+        this.vy = impulse;
+        this.isGrounded = false;
+        this.isJumping = true;
+        this.jumpHoldTimer = JUMP_HOLD_MAX_FRAMES;
+
+        if (this.form === MarioForm.SMALL) {
+          NESAudio.playJumpSmall();
+        } else {
+          NESAudio.playJumpSuper();
+        }
+      }
+
+      // Variable Jump Height: Holding Jump Sustains Upward Momentum
+      if (input.jump && this.isJumping && this.jumpHoldTimer > 0) {
+        this.jumpHoldTimer--;
+        this.vy += JUMP_GRAVITY;
+      } else {
+        this.isJumping = false;
+        this.vy = Math.min(TERMINAL_VELOCITY, this.vy + GRAVITY);
+      }
     }
 
     // Horizontal Move & Tile Collision

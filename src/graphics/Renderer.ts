@@ -7,6 +7,9 @@ import { Enemy, PiranhaPlant } from '../entities/Enemy';
 import { Item, BlockCoin } from '../entities/Item';
 import { IParticle, BouncingBlock } from '../entities/Particle';
 import { SceneryItem } from '../level/World1_1';
+import { LevelTheme } from '../level/SMB1LevelDecoder';
+import { Bowser } from '../entities/Bowser';
+import { Firebar, Podoboo, Retainer } from '../entities/CastleHazards';
 
 export class Renderer {
   private questionAnimTimer = 0;
@@ -17,7 +20,7 @@ export class Renderer {
 
   public renderScene(
     cameraX: number,
-    isUnderground: boolean,
+    theme: LevelTheme,
     tiles: number[][],
     scenery: SceneryItem[],
     mario: Mario,
@@ -29,35 +32,71 @@ export class Renderer {
     particles: IParticle[],
     fireballs: IParticle[],
     flagY: number,
-    castleFlagY = 112
+    castleFlagY = 112,
+    bowser: Bowser | null = null,
+    firebars: Firebar[] = [],
+    podoboos: Podoboo[] = [],
+    retainer: Retainer | null = null,
+    flagPoleX = 0,
+    castleX = 0
   ) {
     this.questionAnimTimer = (this.questionAnimTimer + 0.15) % 4;
     const qFrame = Math.floor(this.questionAnimTimer);
 
     // 1. Clear Screen / Sky Background
-    this.ctx.fillStyle = isUnderground ? COLORS.UNDERGROUND_BG : COLORS.SKY_BLUE;
+    if (theme === 'underground' || theme === 'castle') {
+      this.ctx.fillStyle = COLORS.BLACK;
+    } else if (theme === 'underwater') {
+      this.ctx.fillStyle = '#2038ec';
+    } else {
+      this.ctx.fillStyle = COLORS.SKY_BLUE;
+    }
     this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
     // 2. Render Scenery (Only for overworld)
-    if (!isUnderground) {
+    if (theme === 'overworld') {
       this.renderScenery(scenery, cameraX);
     }
 
     // 3. Render Tiles
-    this.renderTiles(tiles, cameraX, isUnderground, qFrame, bouncingBlocks, flagY, castleFlagY);
+    this.renderTiles(
+      tiles,
+      cameraX,
+      theme,
+      qFrame,
+      bouncingBlocks,
+      flagY,
+      castleFlagY,
+      flagPoleX,
+      castleX
+    );
 
-    // 4. Render Items & Bouncing Coins
+    // 4. Render Hazards (Firebars & Podoboos)
+    firebars.forEach(fb => fb.render(this.ctx, cameraX));
+    podoboos.forEach(p => p.render(this.ctx, cameraX));
+
+    // 5. Render Retainer (Toad or Peach in castle)
+    if (retainer) {
+      retainer.render(this.ctx, cameraX);
+    }
+
+    // 6. Render Bowser Boss
+    if (bowser) {
+      bowser.render(this.ctx, cameraX);
+    }
+
+    // 7. Render Items & Bouncing Coins
     items.forEach(item => item.render(this.ctx, cameraX));
     blockCoins.forEach(coin => coin.render(this.ctx, cameraX));
 
-    // 5. Render Enemies & Piranhas
+    // 8. Render Enemies & Piranhas
     piranhas.forEach(p => p.render(this.ctx, cameraX));
     enemies.forEach(enemy => enemy.render(this.ctx, cameraX));
 
-    // 6. Render Mario
+    // 9. Render Mario
     mario.render(this.ctx, cameraX);
 
-    // 7. Render Particles (Brick pieces, Smoke, Floating Scores)
+    // 10. Render Particles (Brick pieces, Smoke, Floating Scores)
     particles.forEach(p => p.render(this.ctx, cameraX));
     fireballs.forEach(fb => fb.render(this.ctx, cameraX));
   }
@@ -67,7 +106,6 @@ export class Renderer {
       const px = item.tileX * TILE_SIZE - cameraX;
       const py = item.tileY * TILE_SIZE;
 
-      // Cull scenery off screen
       if (px < -80 || px > CANVAS_WIDTH + 80) return;
 
       if (item.type === 'cloud_single') {
@@ -110,14 +148,17 @@ export class Renderer {
   private renderTiles(
     tiles: number[][],
     cameraX: number,
-    isUnderground: boolean,
+    theme: LevelTheme,
     qFrame: number,
     bouncingBlocks: BouncingBlock[],
     flagY: number,
-    castleFlagY = 112
+    castleFlagY = 112,
+    flagPoleX = 0,
+    castleX = 0
   ) {
     const startCol = Math.max(0, Math.floor(cameraX / TILE_SIZE));
     const endCol = Math.min(tiles[0]?.length || 0, Math.ceil((cameraX + CANVAS_WIDTH) / TILE_SIZE));
+    const isUg = theme === 'underground';
 
     for (let ty = 0; ty < tiles.length; ty++) {
       for (let tx = startCol; tx < endCol; tx++) {
@@ -135,11 +176,15 @@ export class Renderer {
 
         switch (tile) {
           case TileType.GROUND:
-            this.drawSprite(isUnderground ? 'ground_ug' : 'ground', px, py);
+            this.drawSprite(isUg ? 'ground_ug' : 'ground', px, py);
             break;
           case TileType.BRICK:
           case TileType.BRICK_MULTICOIN:
-            this.drawSprite(isUnderground ? 'brick_ug' : 'brick', px, py);
+          case TileType.BRICK_MUSHROOM:
+          case TileType.BRICK_1UP:
+          case TileType.BRICK_STAR:
+          case TileType.BRICK_VINE:
+            this.drawSprite(isUg ? 'brick_ug' : 'brick', px, py);
             break;
           case TileType.QUESTION_COIN:
           case TileType.QUESTION_MUSHROOM:
@@ -181,21 +226,39 @@ export class Renderer {
           case TileType.CASTLE_DOOR:
             this.drawSprite('castle_door', px, py);
             break;
+          case TileType.BRIDGE:
+            this.drawSprite('bridge', px, py);
+            break;
+          case TileType.AXE:
+            this.drawSprite('axe', px, py);
+            break;
+          case TileType.CHAIN:
+            this.drawSprite('chain', px, py);
+            break;
+          case TileType.LAVA_TOP:
+            this.drawSprite('lava_top', px, py);
+            break;
+          case TileType.CORAL:
+            this.drawSprite('coral', px, py);
+            break;
+          case TileType.COIN:
+            const coinImg = SpriteSheet.items[`coin_${qFrame}`];
+            if (coinImg) this.ctx.drawImage(coinImg, Math.round(px + 4), Math.round(py));
+            break;
         }
       }
     }
 
     // Render Flag on flagpole
-    if (!isUnderground) {
-      const flagPoleTileX = 198;
-      const flagPx = flagPoleTileX * TILE_SIZE - cameraX - 8;
+    if (flagPoleX > 0 && theme !== 'underground' && theme !== 'castle') {
+      const flagPx = flagPoleX - cameraX - 8;
       if (flagPx > -20 && flagPx < CANVAS_WIDTH + 20) {
         this.drawSprite('flag', flagPx, flagY);
       }
 
       // Render Castle top flag (rises when level is cleared)
-      if (castleFlagY < 112) {
-        const castleFlagPx = 204 * TILE_SIZE + 4 - cameraX;
+      if (castleFlagY < 112 && castleX > 0) {
+        const castleFlagPx = castleX + 36 - cameraX;
         this.drawSprite('castle_flag', castleFlagPx, castleFlagY);
       }
     }

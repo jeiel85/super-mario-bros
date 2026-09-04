@@ -1,5 +1,6 @@
 // Pixel-Perfect NES Super Mario Bros. Sprite & Tile Generator
 import { COLORS } from './Palette';
+import { initExtraSprites } from './SpriteSheetExtra';
 
 export type SpriteCanvas = HTMLCanvasElement;
 
@@ -82,6 +83,7 @@ export class SpriteSheet {
     this.generateItems();
     this.generateScenery();
     this.generateParticles();
+    initExtraSprites();
     this.isLoaded = true;
   }
 

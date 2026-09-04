@@ -706,4 +706,126 @@ export class NESAudio {
       delay += item.d;
     });
   }
+
+  // 7. CASTLE THEME (Tense, dramatic chromatic chiptune)
+  public static playCastle() {
+    if (this.currentTrack === 'castle') return;
+    this.stopMusic();
+    this.currentTrack = 'castle';
+    this.musicStep = 0;
+
+    const score: Array<[string, string]> = [
+      ['D4', 'D3'], ['Eb4', 'Eb3'], ['D4', 'D3'], ['Eb4', 'Eb3'],
+      ['D4', 'D3'], ['Eb4', 'Eb3'], ['D4', 'D3'], ['Eb4', 'Eb3'],
+      ['C4', 'C3'], ['Db4', 'Db3'], ['C4', 'C3'], ['Db4', 'Db3'],
+      ['C4', 'C3'], ['Db4', 'Db3'], ['C4', 'C3'], ['Db4', 'Db3'],
+      ['B3', 'B2'], ['C4', 'C3'], ['B3', 'B2'], ['C4', 'C3'],
+      ['B3', 'B2'], ['C4', 'C3'], ['B3', 'B2'], ['C4', 'C3'],
+      ['Bb3', 'Bb2'], ['B3', 'B2'], ['Bb3', 'Bb2'], ['B3', 'B2'],
+      ['Bb3', 'Bb2'], ['B3', 'B2'], ['Bb3', 'Bb2'], ['B3', 'B2'],
+    ];
+
+    const stepDuration = 100;
+    this.musicInterval = window.setInterval(() => {
+      if (this.currentTrack !== 'castle') return;
+      const [lead, bass] = score[this.musicStep];
+      if (lead) this.playPulseNote(this.note(lead), stepDuration / 1000 * 0.85);
+      if (bass) this.playBassNote(this.note(bass), stepDuration / 1000 * 0.85);
+      this.playDrum(this.musicStep % 4 === 0);
+
+      this.musicStep = (this.musicStep + 1) % score.length;
+    }, stepDuration);
+  }
+
+  // 8. UNDERWATER THEME (Gentle 3/4 Waltz)
+  public static playUnderwater() {
+    if (this.currentTrack === 'underwater') return;
+    this.stopMusic();
+    this.currentTrack = 'underwater';
+    this.musicStep = 0;
+
+    const score: Array<[string, string]> = [
+      ['D4', 'D3'], ['E4', 'G3'], ['F#4', 'A3'],
+      ['G4', 'B3'], ['A4', 'C4'], ['B4', 'D4'],
+      ['C5', 'E4'], ['', ''], ['', ''],
+      ['B4', 'D4'], ['A4', 'C4'], ['G4', 'B3'],
+      ['F#4', 'A3'], ['E4', 'G3'], ['D4', 'F#3'],
+      ['E4', 'G3'], ['', ''], ['', '']
+    ];
+
+    const stepDuration = 180;
+    this.musicInterval = window.setInterval(() => {
+      if (this.currentTrack !== 'underwater') return;
+      const [lead, bass] = score[this.musicStep];
+      if (lead) this.playPulseNote(this.note(lead), stepDuration / 1000 * 0.9);
+      if (bass) this.playBassNote(this.note(bass), stepDuration / 1000 * 0.9);
+
+      this.musicStep = (this.musicStep + 1) % score.length;
+    }, stepDuration);
+  }
+
+  // 9. VICTORY / PRINCESS SAVED FANFARE
+  public static playVictoryFanfare() {
+    this.stopMusic();
+    this.currentTrack = 'victory';
+
+    const notes = [
+      { n: 'C5', d: 0.15 }, { n: 'G4', d: 0.15 }, { n: 'E4', d: 0.15 },
+      { n: 'A4', d: 0.2 }, { n: 'B4', d: 0.2 }, { n: 'A4', d: 0.2 },
+      { n: 'G#4', d: 0.2 }, { n: 'Bb4', d: 0.2 }, { n: 'G#4', d: 0.2 },
+      { n: 'G4', d: 0.4 }, { n: 'C5', d: 0.6 }
+    ];
+
+    let delay = 0;
+    notes.forEach(item => {
+      setTimeout(() => {
+        if (item.n) this.playPulseNote(this.note(item.n), item.d * 0.9);
+      }, delay * 1000);
+      delay += item.d;
+    });
+  }
+
+  // Bowser Fire Breath SFX
+  public static playBowserFlame() {
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const t = this.ctx.currentTime;
+    const source = this.ctx.createBufferSource();
+    if (!this.noiseBuffer) return;
+    source.buffer = this.noiseBuffer;
+
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(400, t);
+    filter.frequency.exponentialRampToValueAtTime(150, t + 0.35);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.4, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+
+    source.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    source.start(t);
+    source.stop(t + 0.36);
+  }
+
+  // Bowser Fall into Lava SFX
+  public static playBowserFall() {
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(220, t);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.8);
+
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.linearRampToValueAtTime(0.01, t + 0.8);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.81);
+  }
 }

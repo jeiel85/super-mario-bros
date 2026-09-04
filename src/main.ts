@@ -1,4 +1,4 @@
-// Super Mario Bros. (NES 1985) - Main Game Engine
+// Super Mario Bros. (NES 1985) - Full 32-Stage Game Engine
 import {
   CANVAS_WIDTH,
   TILE_SIZE,
@@ -18,6 +18,9 @@ import { Enemy, PiranhaPlant } from './entities/Enemy';
 import { Item, BlockCoin } from './entities/Item';
 import { IParticle, BrickPiece, FloatingScore, BouncingBlock, Fireball, Firework } from './entities/Particle';
 import { World1_1, EnemySpawn, SceneryItem } from './level/World1_1';
+import { SMB1LevelDecoder, LevelTheme } from './level/SMB1LevelDecoder';
+import { Bowser } from './entities/Bowser';
+import { Firebar, Podoboo, Retainer } from './entities/CastleHazards';
 
 export class Game {
   private canvas: HTMLCanvasElement;
@@ -30,7 +33,12 @@ export class Game {
   private stateTimer = 0;
   private frameCount = 0;
 
-  // Level Data
+  // Active Stage Coordinates (1-1 through 8-4)
+  public currentWorld = 1;
+  public currentStage = 1;
+
+  // Level Environment & Data
+  private theme: LevelTheme = 'overworld';
   private isUnderground = false;
   private tiles: number[][] = [];
   private enemySpawns: EnemySpawn[] = [];
@@ -38,13 +46,20 @@ export class Game {
   private flagPoleX = 198 * TILE_SIZE;
   private castleX = 202 * TILE_SIZE;
 
-  // Underground Cache
-  private ugTiles: number[][] = [];
-  private ugCoins: Array<{ x: number; y: number }> = [];
-  private ugExitPipeX = 16 * TILE_SIZE;
+  // Castle Specifics
+  private isCastle = false;
+  private hasAxe = false;
+  private axeX = 0;
+  private bridgeStartX = 0;
+  private bridgeEndX = 0;
+  private isPeach = false;
 
   // Active Entities
   private mario: Mario;
+  private bowser: Bowser | null = null;
+  private firebars: Firebar[] = [];
+  private podoboos: Podoboo[] = [];
+  private retainer: Retainer | null = null;
   private enemies: Enemy[] = [];
   private piranhas: PiranhaPlant[] = [];
   private items: Item[] = [];
@@ -53,6 +68,9 @@ export class Game {
   private particles: IParticle[] = [];
   private fireballs: Fireball[] = [];
   private multiCoinBricks: Map<string, { hits: number; expireFrame: number }> = new Map();
+
+  // Underground Bonus Cache
+  private ugTiles: number[][] = [];
 
   // Camera & Viewport
   private cameraX = 0;
@@ -83,7 +101,7 @@ export class Game {
     });
 
     this.setupUIControls();
-    this.initLevel();
+    this.initLevel(this.currentWorld, this.currentStage);
 
     // Start 60 FPS Fixed Time Loop
     let lastTime = performance.now();
@@ -110,20 +128,35 @@ export class Game {
     requestAnimationFrame(loop);
   }
 
-  // Setup Level 1-1 and Underground
-  private initLevel() {
-    const data = World1_1.createLevelData();
-    this.tiles = data.tiles;
-    this.enemySpawns = data.enemies;
-    this.scenery = data.scenery;
-    this.flagPoleX = data.flagPoleX;
-    this.castleX = data.castleX;
-    this.piranhas = data.piranhas.map(p => new PiranhaPlant(p.pipeX, p.pipeTopY));
+  // Setup Stage (World 1-1 to World 8-4)
+  private initLevel(worldNum = this.currentWorld, stageNum = this.currentStage) {
+    this.currentWorld = worldNum;
+    this.currentStage = stageNum;
 
+    // Decode authentic level directly from NES ROM byte stream
+    const decoded = SMB1LevelDecoder.decodeLevel(worldNum, stageNum);
+    this.tiles = decoded.tiles;
+    this.enemySpawns = decoded.enemies;
+    this.scenery = decoded.scenery;
+    this.theme = decoded.theme;
+    this.flagPoleX = decoded.flagPoleX;
+    this.castleX = decoded.castleX;
+    this.hasAxe = decoded.hasAxe;
+    this.axeX = decoded.axeX;
+    this.isCastle = decoded.isCastle;
+    this.isPeach = decoded.isPeach;
+    this.bridgeStartX = decoded.bridgeStartX;
+    this.bridgeEndX = decoded.bridgeEndX;
+
+    this.piranhas = decoded.piranhas.map(p => new PiranhaPlant(p.pipeX, p.pipeTopY));
+    this.firebars = decoded.firebars.map(f => new Firebar(f.tileX, f.tileY, f.length, f.clockwise));
+    this.podoboos = decoded.podoboos.map(p => new Podoboo(p.x));
+    this.bowser = decoded.bowserX ? new Bowser(decoded.bowserX, 9 * TILE_SIZE, worldNum) : null;
+    this.retainer = decoded.retainerX ? new Retainer(decoded.retainerX, 11 * TILE_SIZE, decoded.isPeach) : null;
+
+    // Default underground bonus room
     const ugData = World1_1.createUndergroundData();
     this.ugTiles = ugData.tiles;
-    this.ugCoins = ugData.coins;
-    this.ugExitPipeX = ugData.exitPipeX;
 
     this.enemies = [];
     this.items = [];
@@ -140,16 +173,28 @@ export class Game {
     this.fireworkTimer = 0;
     this.isUnderground = false;
 
-    this.hud.resetLevelTime();
+    this.hud.world = `${worldNum}-${stageNum}`;
+    this.hud.resetLevelTime(decoded.timer);
+    this.mario.isUnderwater = (decoded.theme === 'underwater');
   }
 
   // Start Level Playing
   private startLevel() {
-    this.initLevel();
+    this.initLevel(this.currentWorld, this.currentStage);
     this.mario.character = this.hud.selectedPlayer === 2 ? Character.LUIGI : Character.MARIO;
-    this.mario.reset(40, 192);
+    const startY = this.theme === 'underwater' ? 80 : 192;
+    this.mario.reset(40, startY);
     this.state = GameState.PLAYING;
-    NESAudio.playOverworld();
+
+    if (this.theme === 'castle') {
+      NESAudio.playCastle();
+    } else if (this.theme === 'underwater') {
+      NESAudio.playUnderwater();
+    } else if (this.theme === 'underground') {
+      NESAudio.playUnderground();
+    } else {
+      NESAudio.playOverworld();
+    }
   }
 
   // UI Buttons setup
@@ -205,6 +250,7 @@ export class Game {
     this.input.update();
     this.frameCount++;
     (window as any).__gameState = this.state;
+    (window as any).__currentWorld = `${this.currentWorld}-${this.currentStage}`;
 
     switch (this.state) {
       case GameState.TITLE:
@@ -213,8 +259,37 @@ export class Game {
           this.hud.selectedPlayer = this.hud.selectedPlayer === 1 ? 2 : 1;
           NESAudio.playCoin();
         }
+        // Stage Select via Left / Right arrow keys
+        if (this.input.leftPressed) {
+          NESAudio.unlock();
+          if (this.hud.startingStage > 1) {
+            this.hud.startingStage--;
+          } else if (this.hud.startingWorld > 1) {
+            this.hud.startingWorld--;
+            this.hud.startingStage = 4;
+          } else {
+            this.hud.startingWorld = 8;
+            this.hud.startingStage = 4;
+          }
+          NESAudio.playCoin();
+        }
+        if (this.input.rightPressed) {
+          NESAudio.unlock();
+          if (this.hud.startingStage < 4) {
+            this.hud.startingStage++;
+          } else if (this.hud.startingWorld < 8) {
+            this.hud.startingWorld++;
+            this.hud.startingStage = 1;
+          } else {
+            this.hud.startingWorld = 1;
+            this.hud.startingStage = 1;
+          }
+          NESAudio.playCoin();
+        }
         if (this.input.startPressed || this.input.jumpPressed) {
           NESAudio.unlock();
+          this.currentWorld = this.hud.startingWorld;
+          this.currentStage = this.hud.startingStage;
           this.mario.character = this.hud.selectedPlayer === 2 ? Character.LUIGI : Character.MARIO;
           this.state = GameState.START_SCREEN;
           this.stateTimer = 120; // 2 seconds
@@ -258,6 +333,14 @@ export class Game {
         this.updateLevelClearTally();
         break;
 
+      case GameState.CASTLE_CLEAR:
+        this.updateCastleClearSequence();
+        break;
+
+      case GameState.GAME_VICTORY:
+        this.updateVictorySequence();
+        break;
+
       case GameState.MARIO_DYING:
         this.mario.update(
           this.input,
@@ -291,6 +374,7 @@ export class Game {
     }
   }
 
+  // Gameplay update
   private updatePlaying() {
     // 1. Timer countdown
     const isTimeout = this.hud.updateTime();
@@ -307,159 +391,151 @@ export class Game {
       this.input,
       currentTiles,
       this.cameraX,
-      (tx, ty) => this.handleHitBlock(tx, ty),
+      (tx, ty) => this.hitBlockFromBelow(tx, ty),
       (smoke) => this.particles.push(smoke),
-      (fx, fy, dir) => {
-        if (this.fireballs.length < 2) {
-          this.fireballs.push(new Fireball(fx, fy, dir));
-        }
-      }
+      (fx, fy, dir) => this.fireballs.push(new Fireball(fx, fy, dir))
     );
 
-    // Check Mario Death
-    if (this.mario.isDead) {
+    // Pit death
+    if (this.mario.y > 240) {
+      this.mario.die();
       this.state = GameState.MARIO_DYING;
       return;
     }
 
-    // 3. Camera Scrolling (Overworld only, strictly rightward)
+    // 3. Camera Scrolling (Smooth forward scroll)
     if (!this.isUnderground) {
-      const scrollThreshold = this.cameraX + 112;
-      if (this.mario.x > scrollThreshold) {
-        this.cameraX = Math.min(
-          this.mario.x - 112,
-          World1_1.WIDTH * TILE_SIZE - CANVAS_WIDTH
-        );
+      const targetCamX = this.mario.x - 110;
+      if (targetCamX > this.cameraX) {
+        const maxLevelX = (this.tiles[0]?.length || 200) * TILE_SIZE - CANVAS_WIDTH;
+        this.cameraX = Math.min(maxLevelX, targetCamX);
       }
     }
 
-    // 4. Enemy Spawning Ahead of Camera
-    if (!this.isUnderground) {
-      this.enemySpawns.forEach(spawn => {
-        if (!spawn.spawned && spawn.x <= this.cameraX + CANVAS_WIDTH + 32) {
-          spawn.spawned = true;
-          this.enemies.push(new Enemy(spawn.type, spawn.x, spawn.y));
-        }
-      });
-    }
-
-    // 5. Update Enemies & Piranhas
-    this.enemies.forEach(e => {
-      e.update(currentTiles, this.cameraX, (score) => {
-        this.particles.push(score);
-        this.hud.addScore(parseInt(score.text, 10) || 100);
-      });
+    // 4. Spawn Enemies Ahead of Screen
+    this.enemySpawns.forEach(spawn => {
+      if (!spawn.spawned && spawn.x < this.cameraX + 280) {
+        spawn.spawned = true;
+        this.enemies.push(new Enemy(spawn.type, spawn.x, spawn.y));
+      }
     });
 
-    if (!this.isUnderground) {
-      this.piranhas.forEach(p => {
-        p.update(this.mario.x, this.cameraX);
+    // 5. Update Enemies
+    this.enemies.forEach(enemy => {
+      enemy.update(
+        currentTiles,
+        this.cameraX,
+        this.mario.x,
+        (spawned) => this.enemies.push(spawned),
+        (score) => this.particles.push(score)
+      );
+    });
+    this.enemies = this.enemies.filter(e => !e.isDead);
 
-        // Check collision with Mario
-        if (!this.mario.isInvulnerable && p.checkMarioCollision(this.mario.x, this.mario.y, this.mario.width, this.mario.height)) {
-          if (this.mario.isStarman) {
-            p.defeat();
-            this.hud.addScore(200);
-            this.particles.push(new FloatingScore(p.x, p.y, '200'));
-          } else {
-            this.mario.takeDamage();
-          }
-        }
-      });
+    // 6. Update Bowser Boss
+    if (this.bowser) {
+      this.bowser.update(currentTiles, this.cameraX, this.mario.x, score => this.particles.push(score));
     }
 
-    // 6. Update Items & Block Coins
-    this.items.forEach(item => item.update(currentTiles));
-    this.blockCoins.forEach(coin => coin.update());
+    // 7. Update Hazards (Firebars & Podoboos)
+    this.firebars.forEach(f => {
+      f.update();
+      if (f.checkCollision(this.mario.x, this.mario.y, this.mario.width, this.mario.height)) {
+        if (this.mario.takeDamage()) {
+          this.state = GameState.MARIO_DYING;
+        }
+      }
+    });
 
-    // 7. Update Bouncing Blocks
+    this.podoboos.forEach(p => {
+      p.update();
+      if (p.checkCollision(this.mario.x, this.mario.y, this.mario.width, this.mario.height)) {
+        if (this.mario.takeDamage()) {
+          this.state = GameState.MARIO_DYING;
+        }
+      }
+    });
+
+    // 8. Update Piranhas
+    if (!this.isUnderground) {
+      this.piranhas.forEach(p => p.update(this.mario.x, this.cameraX));
+    }
+
+    // 9. Update Items, Coins, Particles, Fireballs
+    this.items.forEach(item => item.update(currentTiles));
+    this.items = this.items.filter(item => !item.isDead);
+
+    this.blockCoins.forEach(coin => coin.update());
+    this.blockCoins = this.blockCoins.filter(coin => !coin.isDead);
+
     this.bouncingBlocks.forEach(b => b.update());
     this.bouncingBlocks = this.bouncingBlocks.filter(b => !b.isFinished);
 
-    // 8. Update Particles & Fireballs
     this.particles.forEach(p => p.update());
     this.particles = this.particles.filter(p => !p.isDead);
 
-    this.fireballs.forEach(fb => fb.update(currentTiles));
+    this.fireballs.forEach(fb => {
+      fb.update(currentTiles);
+
+      // Fireball vs Bowser
+      if (this.bowser && !this.bowser.isDead && !this.bowser.isFalling) {
+        if (
+          fb.x < this.bowser.x + this.bowser.width &&
+          fb.x + fb.width > this.bowser.x &&
+          fb.y < this.bowser.y + this.bowser.height &&
+          fb.y + fb.height > this.bowser.y
+        ) {
+          fb.isDead = true;
+          this.bowser.hitByFireball(s => this.particles.push(s));
+        }
+      }
+
+      // Fireball vs Enemies
+      this.enemies.forEach(enemy => {
+        if (!enemy.isDead && !enemy.isFlipped) {
+          if (
+            fb.x < enemy.x + enemy.width &&
+            fb.x + fb.width > enemy.x &&
+            fb.y < enemy.y + enemy.height &&
+            fb.y + fb.height > enemy.y
+          ) {
+            fb.isDead = true;
+            if (enemy.type === 'buzzy_beetle') {
+              NESAudio.playBlockBump(); // Fireball bounces off Buzzy Beetle!
+            } else {
+              enemy.flipDie();
+              this.hud.addScore(200);
+              this.particles.push(new FloatingScore(enemy.x, enemy.y, '200'));
+            }
+          }
+        }
+      });
+    });
     this.fireballs = this.fireballs.filter(fb => !fb.isDead);
 
-    // Fireball vs Enemy/Piranha collision
-    this.fireballs.forEach(fb => {
-      if (fb.isDead) return;
-      this.enemies.forEach(e => {
-        if (e.isDead || e.isFlipped) return;
-        if (Math.abs(fb.x + 4 - (e.x + 8)) < 12 && Math.abs(fb.y + 4 - (e.y + e.height / 2)) < 12) {
-          fb.isDead = true;
-          e.flipDie(fb.vx > 0 ? 1 : -1);
-          this.hud.addScore(100);
-          this.particles.push(new FloatingScore(e.x, e.y, '100'));
-        }
-      });
-
-      if (!this.isUnderground) {
-        this.piranhas.forEach(p => {
-          if (p.isDead || p.state === 'HIDDEN') return;
-          if (Math.abs(fb.x + 4 - (p.x + 8)) < 12 && fb.y + 8 > p.y && fb.y < p.pipeTopY) {
-            fb.isDead = true;
-            p.defeat();
-            this.hud.addScore(200);
-            this.particles.push(new FloatingScore(p.x, p.y, '200'));
-          }
-        });
-      }
-    });
-
-    // 9. Underground coin collection
-    if (this.isUnderground) {
-      this.ugCoins = this.ugCoins.filter(c => {
-        const dist = Math.hypot(this.mario.x - c.x, this.mario.y - c.y);
-        if (dist < 14) {
-          this.hud.addCoin();
-          NESAudio.playCoin();
-          this.particles.push(new FloatingScore(c.x, c.y, '200'));
-          return false;
-        }
-        return true;
-      });
-    }
-
-    // 10. Check Collisions: Mario vs Enemies
+    // 10. Check Collisions
     this.checkMarioEnemyCollisions();
-
-    // 11. Check Collisions: Shell vs Enemies
-    this.checkShellEnemyCollisions();
-
-    // 12. Check Collisions: Mario vs Items
     this.checkMarioItemCollisions();
 
-    // 13. Check Pipe Down Entrance (Pipe 4 -> Underground)
-    if (!this.isUnderground && this.input.down && this.mario.isGrounded) {
-      const tileX = Math.floor((this.mario.x + 8) / TILE_SIZE);
-      const tileY = Math.floor((this.mario.y + this.mario.height) / TILE_SIZE);
-      if ((tileX === 57 || tileX === 58) && tileY === 9) {
-        this.enterUnderground();
+    // 11. Castle Axe Trigger
+    if (this.hasAxe && Math.abs(this.mario.x - this.axeX) <= 18) {
+      this.triggerCastleBridgeCollapse();
+      return;
+    }
+
+    // 12. Flagpole Trigger
+    if (this.flagPoleX > 0 && !this.isUnderground && !this.isCastle) {
+      if (this.mario.x >= this.flagPoleX - 4 && this.mario.x <= this.flagPoleX + 16) {
+        this.triggerFlagpole();
       }
-    }
-
-    // 14. Check Underground Exit Pipe -> Surface
-    if (this.isUnderground && this.mario.x >= this.ugExitPipeX && this.input.right) {
-      this.exitUnderground();
-    }
-
-    // 15. Check Flagpole Collision (End of Level)
-    if (!this.isUnderground && !this.mario.isOnFlagPole && this.mario.x >= this.flagPoleX - 4 && this.mario.x <= this.flagPoleX + 8) {
-      this.triggerFlagpole();
     }
   }
 
-  // -------------------------------------------------------------
-  // TILE BLOCK HITTING (Underneath bump)
-  // -------------------------------------------------------------
-  private handleHitBlock(tx: number, ty: number) {
+  // Hit block from below
+  private hitBlockFromBelow(tx: number, ty: number) {
     const tiles = this.isUnderground ? this.ugTiles : this.tiles;
     const tile = tiles[ty][tx];
 
-    // Check Question Blocks
     if (
       tile === TileType.QUESTION_COIN ||
       tile === TileType.QUESTION_MUSHROOM ||
@@ -474,7 +550,6 @@ export class Game {
         this.blockCoins.push(new BlockCoin(tx * TILE_SIZE, (ty - 1) * TILE_SIZE));
         this.particles.push(new FloatingScore(tx * TILE_SIZE, (ty - 1) * TILE_SIZE, '200'));
       } else if (tile === TileType.QUESTION_MUSHROOM) {
-        // Mushroom if Small, Flower if Super
         const itemType = this.mario.form === MarioForm.SMALL ? 'mushroom' : 'flower';
         this.items.push(new Item(itemType, tx * TILE_SIZE, ty * TILE_SIZE));
       } else if (tile === TileType.QUESTION_STAR) {
@@ -484,16 +559,12 @@ export class Game {
       }
 
       this.defeatEnemyOnTopOfBlock(tx, ty);
-    }
-    // Check Breakable Brick
-    else if (tile === TileType.BRICK) {
+    } else if (tile === TileType.BRICK) {
       if (this.mario.form === MarioForm.SMALL) {
-        // Small Mario bumps block
         this.bouncingBlocks.push(new BouncingBlock(tx, ty, tile));
         NESAudio.playBlockBump();
         this.defeatEnemyOnTopOfBlock(tx, ty);
       } else {
-        // Super Mario shatters brick into 4 pieces
         tiles[ty][tx] = TileType.EMPTY;
         NESAudio.playBlockBreak();
         const px = tx * TILE_SIZE;
@@ -504,9 +575,7 @@ export class Game {
         this.particles.push(new BrickPiece(px + 8, py + 8, 1.2, -5.5));
         this.defeatEnemyOnTopOfBlock(tx, ty);
       }
-    }
-    // Multi-coin Brick (Hits dispense coins until timer expires)
-    else if (tile === TileType.BRICK_MULTICOIN) {
+    } else if (tile === TileType.BRICK_MULTICOIN) {
       const key = `${tx},${ty}`;
       let info = this.multiCoinBricks.get(key);
       if (!info) {
@@ -542,18 +611,47 @@ export class Game {
     });
   }
 
-  // -------------------------------------------------------------
-  // COLLISION RESOLUTION (Mario vs Enemies, Items, Shells)
-  // -------------------------------------------------------------
+  // Mario vs Enemy collisions
   private checkMarioEnemyCollisions() {
+    // Mario vs Bowser
+    if (this.bowser && !this.bowser.isDead && !this.bowser.isFalling) {
+      if (
+        this.mario.x < this.bowser.x + this.bowser.width &&
+        this.mario.x + this.mario.width > this.bowser.x &&
+        this.mario.y < this.bowser.y + this.bowser.height &&
+        this.mario.y + this.mario.height > this.bowser.y
+      ) {
+        if (this.mario.isStarman) {
+          this.bowser.defeat(s => this.particles.push(s));
+        } else if (this.mario.takeDamage()) {
+          this.state = GameState.MARIO_DYING;
+          return;
+        }
+      }
+
+      // Mario vs Bowser Flames
+      this.bowser.flames.forEach(f => {
+        if (
+          this.mario.x < f.x + f.width &&
+          this.mario.x + this.mario.width > f.x &&
+          this.mario.y < f.y + f.height &&
+          this.mario.y + this.mario.height > f.y
+        ) {
+          if (!this.mario.isStarman && this.mario.takeDamage()) {
+            this.state = GameState.MARIO_DYING;
+          }
+        }
+      });
+    }
+
+    // Mario vs Enemies
     this.enemies.forEach(e => {
       if (e.isDead || e.isFlipped) return;
 
       const overlapX = Math.min(this.mario.x + this.mario.width, e.x + e.width) - Math.max(this.mario.x, e.x);
       const overlapY = Math.min(this.mario.y + this.mario.height, e.y + e.height) - Math.max(this.mario.y, e.y);
 
-      if (overlapX > 3 && overlapY > 3) {
-        // 1. Starman Mario instant kill
+      if (overlapX > 4 && overlapY > 4) {
         if (this.mario.isStarman) {
           e.flipDie();
           this.hud.addScore(200);
@@ -561,88 +659,71 @@ export class Game {
           return;
         }
 
-        // 2. Mario Stomps Enemy from above
-        // Mario is falling and his bottom is in the top 40% of the enemy
-        const isStomp = this.mario.vy > 0 && (this.mario.y + this.mario.height - this.mario.vy) <= (e.y + 10);
+        const isFallingOntoEnemy = this.mario.vy > 0 && this.mario.y + this.mario.height - this.mario.vy <= e.y + 10;
 
-        if (isStomp) {
-          const wasStomped = e.stomp((score) => {
-            this.particles.push(score);
-            this.hud.addScore(parseInt(score.text, 10) || 100);
-          });
-          if (wasStomped) {
-            // Bounce Mario upward
-            this.mario.vy = this.input.jump ? -4.5 : -3.2;
-            this.mario.y = e.y - this.mario.height;
+        if (isFallingOntoEnemy) {
+          const didStomp = e.stomp(score => this.particles.push(score));
+          if (didStomp) {
+            this.mario.vy = -3.2; // Bounce off enemy
+            this.hud.addScore(100);
+          } else {
+            // Harmed by spiked enemy (Spiny)
+            if (this.mario.takeDamage()) {
+              this.state = GameState.MARIO_DYING;
+            }
           }
-          return;
-        }
-
-        // 3. Stationary Shell Kick
-        if (e.isShell && !e.isShellMoving) {
-          const kickDir = this.mario.x < e.x ? 1 : -1;
-          e.kickShell(kickDir, (score) => {
-            this.particles.push(score);
-            this.hud.addScore(parseInt(score.text, 10) || 400);
-          });
-          this.mario.x = kickDir === 1 ? e.x - this.mario.width - 2 : e.x + e.width + 2;
-          return;
-        }
-
-        // 4. Mario takes damage
-        if (!e.isStomped) {
-          this.mario.takeDamage();
+        } else {
+          if (e.isShell && !e.isShellMoving) {
+            const dir = this.mario.x < e.x ? 1 : -1;
+            e.kickShell(dir, score => this.particles.push(score));
+          } else {
+            if (this.mario.takeDamage()) {
+              this.state = GameState.MARIO_DYING;
+            }
+          }
         }
       }
     });
-  }
 
-  private checkShellEnemyCollisions() {
-    this.enemies.forEach(shell => {
-      if (!shell.isShell || !shell.isShellMoving || shell.isDead) return;
-
-      this.enemies.forEach(target => {
-        if (shell === target || target.isDead || target.isFlipped) return;
-
-        const overlapX = Math.min(shell.x + shell.width, target.x + target.width) - Math.max(shell.x, target.x);
-        const overlapY = Math.min(shell.y + shell.height, target.y + target.height) - Math.max(shell.y, target.y);
-
-        if (overlapX > 4 && overlapY > 4) {
-          const dir = shell.vx > 0 ? 1 : -1;
-          target.flipDie(dir);
-          shell.shellComboCount++;
-          const pts = [100, 200, 400, 800, 1000, 2000, 4000, 8000][Math.min(7, shell.shellComboCount)];
-          this.hud.addScore(pts);
-          this.particles.push(new FloatingScore(target.x, target.y, pts.toString()));
+    // Mario vs Piranhas
+    if (!this.isUnderground) {
+      this.piranhas.forEach(p => {
+        if (p.checkMarioCollision(this.mario.x, this.mario.y, this.mario.width, this.mario.height)) {
+          if (this.mario.isStarman) {
+            p.defeat();
+            this.hud.addScore(200);
+            this.particles.push(new FloatingScore(p.x, p.y, '200'));
+          } else if (this.mario.takeDamage()) {
+            this.state = GameState.MARIO_DYING;
+          }
         }
       });
-    });
+    }
   }
 
+  // Mario vs Items
   private checkMarioItemCollisions() {
     this.items.forEach(item => {
-      if (item.isDead || item.isSprouting) return;
-
+      if (item.isDead) return;
       const overlapX = Math.min(this.mario.x + this.mario.width, item.x + item.width) - Math.max(this.mario.x, item.x);
       const overlapY = Math.min(this.mario.y + this.mario.height, item.y + item.height) - Math.max(this.mario.y, item.y);
 
       if (overlapX > 2 && overlapY > 2) {
         item.isDead = true;
-
         if (item.type === 'mushroom') {
           this.mario.grow();
           this.hud.addScore(1000);
           this.particles.push(new FloatingScore(item.x, item.y, '1000'));
         } else if (item.type === 'flower') {
           this.mario.form = MarioForm.FIRE;
-          this.mario.grow();
+          NESAudio.playPowerup();
           this.hud.addScore(1000);
           this.particles.push(new FloatingScore(item.x, item.y, '1000'));
         } else if (item.type === 'star') {
           this.mario.isStarman = true;
-          this.mario.starTimer = 600; // 10 seconds
-          this.hud.addScore(1000);
+          this.mario.starTimer = 600;
           NESAudio.playStar();
+          this.hud.addScore(1000);
           this.particles.push(new FloatingScore(item.x, item.y, '1000'));
         } else if (item.type === '1up') {
           this.hud.lives++;
@@ -654,33 +735,65 @@ export class Game {
   }
 
   // -------------------------------------------------------------
-  // WARP & UNDERGROUND
+  // CASTLE CLEAR & VICTORY SEQUENCE
   // -------------------------------------------------------------
-  private enterUnderground() {
-    NESAudio.playPipe();
-    this.isUnderground = true;
-    this.cameraX = 0;
-    this.mario.x = 2 * TILE_SIZE;
-    this.mario.y = 2 * TILE_SIZE;
-    this.mario.vx = 0;
-    this.mario.vy = 0;
-    NESAudio.playUnderground();
+  private triggerCastleBridgeCollapse() {
+    this.hasAxe = false;
+    const axeTileX = Math.floor(this.axeX / TILE_SIZE);
+    if (this.tiles[8]) this.tiles[8][axeTileX] = TileType.EMPTY;
+
+    // Defeat Bowser
+    this.bowser?.defeat(score => this.particles.push(score));
+
+    // Collapse bridge
+    const bStart = Math.floor(this.bridgeStartX / TILE_SIZE);
+    const bEnd = Math.floor(this.bridgeEndX / TILE_SIZE);
+    for (let bx = bStart; bx <= bEnd; bx++) {
+      if (this.tiles[9]) this.tiles[9][bx] = TileType.EMPTY;
+    }
+
+    this.state = GameState.CASTLE_WALK;
+    this.mario.isWalkingToCastle = true;
+    this.mario.facingRight = true;
+    this.mario.vx = 1.2;
+    NESAudio.stopMusic();
   }
 
-  private exitUnderground() {
-    NESAudio.playPipe();
-    this.isUnderground = false;
-    // Surface near Pipe 5 at x = 163
-    this.cameraX = 150 * TILE_SIZE;
-    this.mario.x = 163 * TILE_SIZE + 4;
-    this.mario.y = 11 * TILE_SIZE;
-    this.mario.vx = 0;
-    this.mario.vy = 0;
-    NESAudio.playOverworld();
+  private updateCastleWalkSequence() {
+    this.mario.x += 1.0;
+    if (this.mario.x - this.cameraX > 110) {
+      this.cameraX = Math.round(this.mario.x - 110);
+    }
+    const targetX = this.retainer ? this.retainer.x - 30 : this.axeX + 64;
+
+    if (this.mario.x >= targetX) {
+      this.mario.vx = 0;
+      this.stateTimer = 0;
+      this.state = this.isPeach ? GameState.GAME_VICTORY : GameState.CASTLE_CLEAR;
+      NESAudio.playVictoryFanfare();
+    }
+  }
+
+  private updateCastleClearSequence() {
+    this.stateTimer++;
+    // After delay or upon button press, advance to next world
+    if (this.stateTimer > 280 || (this.stateTimer > 90 && this.input.startPressed)) {
+      this.advanceStage();
+    }
+  }
+
+  private updateVictorySequence() {
+    this.stateTimer++;
+    // Victory ending screen
+    if (this.stateTimer > 600 || (this.stateTimer > 180 && (this.input.startPressed || this.input.jumpPressed))) {
+      this.hud.startingWorld = 1;
+      this.hud.startingStage = 1;
+      this.state = GameState.TITLE;
+    }
   }
 
   // -------------------------------------------------------------
-  // FLAGPOLE & LEVEL CLEAR
+  // FLAGPOLE & LEVEL PROGRESSION
   // -------------------------------------------------------------
   private triggerFlagpole() {
     this.state = GameState.FLAGPOLE_SLIDE;
@@ -693,7 +806,6 @@ export class Game {
     this.mario.vy = 0;
     this.isFlagLowering = true;
 
-    // In NES SMB, if the timer ends in 1, 3, or 6, fireworks will explode!
     const remainder = this.hud.timeLeft % 10;
     if (remainder === 1) this.fireworksLeft = 1;
     else if (remainder === 3) this.fireworksLeft = 3;
@@ -701,7 +813,6 @@ export class Game {
     else this.fireworksLeft = 0;
     this.fireworkTimer = 0;
 
-    // Score points by height touched
     const flagHeight = Math.max(0, 192 - this.mario.y);
     let pts = 100;
     if (flagHeight > 120) pts = 5000;
@@ -714,14 +825,12 @@ export class Game {
   }
 
   private updateFlagpoleSequence() {
-    // Flag lowers down the pole
     if (this.isFlagLowering) {
       if (this.flagY < 12 * TILE_SIZE) {
         this.flagY += 2.0;
       }
     }
 
-    // Mario sliding down
     this.mario.update(
       this.input,
       this.tiles,
@@ -730,74 +839,65 @@ export class Game {
       () => {}
     );
 
-    // Once Mario hits bottom of pole, walk to castle
     if (this.mario.isWalkingToCastle) {
       this.state = GameState.CASTLE_WALK;
       NESAudio.playLevelClear();
     }
   }
 
-  private updateCastleWalkSequence() {
-    this.mario.update(
-      this.input,
-      this.tiles,
-      this.cameraX,
-      () => {},
-      () => {}
-    );
-
-    // Castle flag ascends up the turret
-    if (this.castleFlagY > 88) {
-      this.castleFlagY -= 0.5;
-    }
-
-    // Mario enters castle door
-    if (this.mario.x >= this.castleX + 32) {
-      this.state = GameState.LEVEL_CLEAR;
-      this.stateTimer = 0;
-    }
-  }
-
   private updateLevelClearTally() {
-    // Castle flag ascends up the turret
     if (this.castleFlagY > 88) {
       this.castleFlagY -= 0.5;
     }
 
-    // Update fireworks and particles
     this.particles.forEach(p => p.update());
     this.particles = this.particles.filter(p => !p.isDead);
 
-    // 1. Tally remaining time to score
     if (this.hud.timeLeft > 0) {
       this.hud.timeLeft--;
       this.hud.addScore(50);
       if (this.hud.timeLeft % 2 === 0) {
         NESAudio.playCoin();
       }
-    } 
-    // 2. Explode fireworks if any are scheduled!
-    else if (this.fireworksLeft > 0) {
+    } else if (this.fireworksLeft > 0) {
       this.fireworkTimer++;
       if (this.fireworkTimer >= 30) {
         this.fireworkTimer = 0;
         this.fireworksLeft--;
-        const fx = 204 * TILE_SIZE + 8 + (Math.random() * 40 - 20);
+        const fx = this.castleX + 8 + (Math.random() * 40 - 20);
         const fy = 40 + (Math.random() * 30);
         this.particles.push(new Firework(fx, fy));
         this.hud.addScore(500);
         this.particles.push(new FloatingScore(fx, fy, '500'));
       }
-    }
-    // 3. Finished tally & fireworks, reset to 1-1 after delay
-    else {
+    } else {
       this.stateTimer++;
       if (this.stateTimer >= 180) {
-        this.stateTimer = 120;
-        this.state = GameState.START_SCREEN;
-        this.startLevel();
+        this.advanceStage();
       }
     }
+  }
+
+  // Advance to next stage (e.g. 1-1 -> 1-2 -> 1-3 -> 1-4 -> 2-1 ... -> 8-4)
+  private advanceStage() {
+    if (this.currentStage < 4) {
+      this.currentStage++;
+    } else {
+      this.currentStage = 1;
+      this.currentWorld++;
+    }
+
+    if (this.currentWorld > 8) {
+      this.state = GameState.GAME_VICTORY;
+      this.stateTimer = 0;
+      NESAudio.playVictoryFanfare();
+      return;
+    }
+
+    this.hud.world = `${this.currentWorld}-${this.currentStage}`;
+    this.state = GameState.START_SCREEN;
+    this.stateTimer = 120;
+    this.startLevel();
   }
 
   // -------------------------------------------------------------
@@ -805,14 +905,14 @@ export class Game {
   // -------------------------------------------------------------
   private render() {
     if (this.state === GameState.TITLE || this.state === GameState.START_SCREEN || this.state === GameState.GAME_OVER) {
-      this.hud.render(this.ctx, this.state);
+      this.hud.render(this.ctx, this.state, this.isPeach);
       return;
     }
 
-    // Render In-game World
+    // Render In-game World Scene
     this.renderer.renderScene(
       this.cameraX,
-      this.isUnderground,
+      this.theme,
       this.isUnderground ? this.ugTiles : this.tiles,
       this.scenery,
       this.mario,
@@ -824,15 +924,21 @@ export class Game {
       this.particles,
       this.fireballs,
       this.flagY,
-      this.castleFlagY
+      this.castleFlagY,
+      this.bowser,
+      this.firebars,
+      this.podoboos,
+      this.retainer,
+      this.flagPoleX,
+      this.castleX
     );
 
-    // Render In-game HUD
-    this.hud.render(this.ctx, this.state);
+    // Render In-game HUD or Dialog Overlays
+    this.hud.render(this.ctx, this.state, this.isPeach);
   }
 }
 
 // Instantiate and start game when DOM is loaded
 window.addEventListener('DOMContentLoaded', () => {
-  new Game();
+  (window as any).__gameInstance = new Game();
 });

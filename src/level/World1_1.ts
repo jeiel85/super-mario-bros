@@ -1,10 +1,12 @@
 // World 1-1 Complete Level Layout & Underground Room
 import { TileType, TILE_SIZE } from '../constants';
 
+import { EnemyType } from '../entities/Enemy';
+
 export interface EnemySpawn {
   x: number;
   y: number;
-  type: 'goomba' | 'koopa';
+  type: EnemyType;
   spawned?: boolean;
 }
 
