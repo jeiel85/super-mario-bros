@@ -96,6 +96,7 @@ export class Game {
     this.hud = new HUD();
     this.renderer = new Renderer(this.ctx);
     this.mario = new Mario();
+    this.mario.onStarEnd = () => this.playStageMusic();
 
     SpriteSheet.init();
 
@@ -192,6 +193,10 @@ export class Game {
     this.mario.reset(40, startY);
     this.state = GameState.PLAYING;
 
+    this.playStageMusic();
+  }
+
+  public playStageMusic() {
     if (this.theme === 'castle') {
       NESAudio.playCastle();
     } else if (this.theme === 'underwater') {

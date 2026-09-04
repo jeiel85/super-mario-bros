@@ -56,6 +56,7 @@ export class Mario {
   // Starman power
   public isStarman = false;
   public starTimer = 0;
+  public onStarEnd?: () => void;
 
   // Underwater swimming mode
   public isUnderwater = false;
@@ -190,7 +191,11 @@ export class Mario {
       this.starTimer--;
       if (this.starTimer <= 0) {
         this.isStarman = false;
-        NESAudio.playOverworld();
+        if (this.onStarEnd) {
+          this.onStarEnd();
+        } else {
+          NESAudio.playOverworld();
+        }
       }
     }
 
@@ -447,22 +452,36 @@ export class Mario {
       return;
     }
 
-    // Transformation flashing
-    let currentSprites = smallSprites;
-    if (this.isTransforming && Math.floor(this.transformTimer / 4) % 2 === 0) {
-      currentSprites = superSprites;
-    } else if (this.form === MarioForm.SUPER) {
-      currentSprites = superSprites;
-    } else if (this.form === MarioForm.FIRE) {
-      currentSprites = fireSprites;
+    // Determine whether to draw 32px (Super/Fire) or 16px (Small) sprite frame
+    let isBig = this.form !== MarioForm.SMALL;
+    if (this.isTransforming) {
+      isBig = Math.floor(this.transformTimer / 4) % 2 === 0;
     }
 
-    // Starman 4-stage color cycling
-    if (this.isStarman) {
-      const cycle = Math.floor(this.starTimer / 4) % 4;
-      if (cycle === 1) currentSprites = fireSprites;
-      else if (cycle === 2) currentSprites = isLuigi ? SpriteSheet.marioSuper : SpriteSheet.luigiSuper;
-      else if (cycle === 3) currentSprites = superSprites;
+    let currentSprites: Record<string, HTMLCanvasElement>;
+
+    if (isBig) {
+      if (this.isStarman) {
+        const cycle = Math.floor(this.starTimer / 4) % 4;
+        if (cycle === 1) currentSprites = isLuigi ? SpriteSheet.marioSuper : SpriteSheet.luigiSuper;
+        else if (cycle === 2) currentSprites = fireSprites;
+        else if (cycle === 3) currentSprites = isLuigi ? SpriteSheet.luigiSuperAlt : SpriteSheet.marioSuperAlt;
+        else currentSprites = this.form === MarioForm.FIRE ? fireSprites : superSprites;
+      } else if (this.form === MarioForm.FIRE) {
+        currentSprites = fireSprites;
+      } else {
+        currentSprites = superSprites;
+      }
+    } else {
+      if (this.isStarman) {
+        const cycle = Math.floor(this.starTimer / 4) % 4;
+        if (cycle === 1) currentSprites = isLuigi ? SpriteSheet.marioSmall : SpriteSheet.luigiSmall;
+        else if (cycle === 2) currentSprites = isLuigi ? SpriteSheet.luigiSmallFire : SpriteSheet.marioSmallFire;
+        else if (cycle === 3) currentSprites = isLuigi ? SpriteSheet.luigiSmallAlt : SpriteSheet.marioSmallAlt;
+        else currentSprites = smallSprites;
+      } else {
+        currentSprites = smallSprites;
+      }
     }
 
     // Determine current pose
@@ -486,7 +505,8 @@ export class Mario {
     if (!img) return;
 
     const drawX = Math.round(this.x - cameraX);
-    const drawY = Math.round(this.y);
+    // Align sprite feet to Mario's bounding box bottom
+    const drawY = Math.round(this.y + (this.height - img.height));
     const isFlip = (!this.facingRight && spriteName !== 'skid') || (this.facingRight && spriteName === 'skid');
 
     if (isFlip) {

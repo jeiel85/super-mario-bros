@@ -59,11 +59,17 @@ export function flipCanvasV(src: HTMLCanvasElement): HTMLCanvasElement {
 
 export class SpriteSheet {
   public static marioSmall: Record<string, HTMLCanvasElement> = {};
+  public static marioSmallFire: Record<string, HTMLCanvasElement> = {};
+  public static marioSmallAlt: Record<string, HTMLCanvasElement> = {};
   public static marioSuper: Record<string, HTMLCanvasElement> = {};
+  public static marioSuperAlt: Record<string, HTMLCanvasElement> = {};
   public static marioFire: Record<string, HTMLCanvasElement> = {};
 
   public static luigiSmall: Record<string, HTMLCanvasElement> = {};
+  public static luigiSmallFire: Record<string, HTMLCanvasElement> = {};
+  public static luigiSmallAlt: Record<string, HTMLCanvasElement> = {};
   public static luigiSuper: Record<string, HTMLCanvasElement> = {};
+  public static luigiSuperAlt: Record<string, HTMLCanvasElement> = {};
   public static luigiFire: Record<string, HTMLCanvasElement> = {};
 
   public static enemies: Record<string, HTMLCanvasElement> = {};
@@ -652,15 +658,6 @@ export class SpriteSheet {
       "....BB....BB...."
     ];
 
-    this.marioSmall['idle'] = createPixelCanvas(16, 16, smallIdle, smallMap);
-    this.marioSmall['walk1'] = createPixelCanvas(16, 16, smallWalk1, smallMap);
-    this.marioSmall['walk2'] = createPixelCanvas(16, 16, smallWalk2, smallMap);
-    this.marioSmall['walk3'] = createPixelCanvas(16, 16, smallWalk3, smallMap);
-    this.marioSmall['jump'] = createPixelCanvas(16, 16, smallJump, smallMap);
-    this.marioSmall['skid'] = createPixelCanvas(16, 16, smallSkid, smallMap);
-    this.marioSmall['die'] = createPixelCanvas(16, 16, smallDie, smallMap);
-    this.marioSmall['flag'] = createPixelCanvas(16, 16, smallFlag, smallMap);
-
     // 2. Super (Big) Mario (16x32)
     const superMap: Record<string, string> = {
       '.': 'transparent',
@@ -984,47 +981,78 @@ export class SpriteSheet {
       "BBBBBB....BBBBBB"
     ];
 
-    this.marioSuper['idle'] = createPixelCanvas(16, 32, superIdle, superMap);
-    this.marioSuper['walk1'] = createPixelCanvas(16, 32, superWalk1, superMap);
-    this.marioSuper['walk2'] = createPixelCanvas(16, 32, superWalk2, superMap);
-    this.marioSuper['walk3'] = createPixelCanvas(16, 32, superWalk3, superMap);
-    this.marioSuper['jump'] = createPixelCanvas(16, 32, superJump, superMap);
-    this.marioSuper['crouch'] = createPixelCanvas(16, 32, superCrouch, superMap);
-    this.marioSuper['skid'] = createPixelCanvas(16, 32, superSkid, superMap);
-    this.marioSuper['flag'] = createPixelCanvas(16, 32, superFlag, superMap);
+    const buildSmall = (map: Record<string, string>) => ({
+      idle: createPixelCanvas(16, 16, smallIdle, map),
+      walk1: createPixelCanvas(16, 16, smallWalk1, map),
+      walk2: createPixelCanvas(16, 16, smallWalk2, map),
+      walk3: createPixelCanvas(16, 16, smallWalk3, map),
+      jump: createPixelCanvas(16, 16, smallJump, map),
+      skid: createPixelCanvas(16, 16, smallSkid, map),
+      die: createPixelCanvas(16, 16, smallDie, map),
+      flag: createPixelCanvas(16, 16, smallFlag, map),
+    });
 
-    // 3. Fire Mario (Same shape as Super, White/Red palette)
+    const buildSuper = (map: Record<string, string>) => ({
+      idle: createPixelCanvas(16, 32, superIdle, map),
+      walk1: createPixelCanvas(16, 32, superWalk1, map),
+      walk2: createPixelCanvas(16, 32, superWalk2, map),
+      walk3: createPixelCanvas(16, 32, superWalk3, map),
+      jump: createPixelCanvas(16, 32, superJump, map),
+      crouch: createPixelCanvas(16, 32, superCrouch, map),
+      skid: createPixelCanvas(16, 32, superSkid, map),
+      flag: createPixelCanvas(16, 32, superFlag, map),
+      throw: createPixelCanvas(16, 32, superThrow, map),
+    });
+
+    // 1. Mario Small (Original, Fire, Alt Starman)
+    const fireSmallMap: Record<string, string> = {
+      '.': 'transparent',
+      'R': COLORS.FIRE_WHITE,
+      'B': COLORS.FIRE_RED,
+      'S': COLORS.FIRE_SKIN,
+      'Y': COLORS.WHITE
+    };
+    const altSmallMap: Record<string, string> = {
+      '.': 'transparent',
+      'R': COLORS.GROUND_ORANGE,
+      'B': COLORS.BLACK,
+      'S': COLORS.MARIO_SKIN,
+      'Y': COLORS.GROUND_ORANGE
+    };
+
+    this.marioSmall = buildSmall(smallMap);
+    this.marioSmallFire = buildSmall(fireSmallMap);
+    this.marioSmallAlt = buildSmall(altSmallMap);
+
+    // 2. Mario Super & Fire & Alt Starman (16x32)
     const fireMap: Record<string, string> = {
       '.': 'transparent',
       'R': COLORS.FIRE_WHITE,
       'B': COLORS.FIRE_RED,
       'S': COLORS.FIRE_SKIN
     };
-    this.marioFire['idle'] = createPixelCanvas(16, 32, superIdle, fireMap);
-    this.marioFire['walk1'] = createPixelCanvas(16, 32, superWalk1, fireMap);
-    this.marioFire['walk2'] = createPixelCanvas(16, 32, superWalk2, fireMap);
-    this.marioFire['walk3'] = createPixelCanvas(16, 32, superWalk3, fireMap);
-    this.marioFire['jump'] = createPixelCanvas(16, 32, superJump, fireMap);
-    this.marioFire['crouch'] = createPixelCanvas(16, 32, superCrouch, fireMap);
-    this.marioFire['skid'] = createPixelCanvas(16, 32, superSkid, fireMap);
-    this.marioFire['flag'] = createPixelCanvas(16, 32, superFlag, fireMap);
-    this.marioFire['throw'] = createPixelCanvas(16, 32, superThrow, fireMap);
+    const altSuperMap: Record<string, string> = {
+      '.': 'transparent',
+      'R': COLORS.GROUND_ORANGE,
+      'B': COLORS.BLACK,
+      'S': COLORS.MARIO_SKIN
+    };
 
-    // 4. LUIGI (Classic 1985 NES 2-Player: Green hat/shirt, White overalls)
+    this.marioSuper = buildSuper(superMap);
+    this.marioFire = buildSuper(fireMap);
+    this.marioSuperAlt = buildSuper(altSuperMap);
+
+    // 3. Luigi Small & Super
     const luigiSmallMap: Record<string, string> = {
       '.': 'transparent',
       'R': COLORS.PIPE_MID_GREEN,
       'B': COLORS.WHITE,
-      'S': COLORS.MARIO_SKIN
+      'S': COLORS.MARIO_SKIN,
+      'Y': COLORS.WHITE
     };
-    this.luigiSmall['idle'] = createPixelCanvas(16, 16, smallIdle, luigiSmallMap);
-    this.luigiSmall['walk1'] = createPixelCanvas(16, 16, smallWalk1, luigiSmallMap);
-    this.luigiSmall['walk2'] = createPixelCanvas(16, 16, smallWalk2, luigiSmallMap);
-    this.luigiSmall['walk3'] = createPixelCanvas(16, 16, smallWalk3, luigiSmallMap);
-    this.luigiSmall['jump'] = createPixelCanvas(16, 16, smallJump, luigiSmallMap);
-    this.luigiSmall['skid'] = createPixelCanvas(16, 16, smallSkid, luigiSmallMap);
-    this.luigiSmall['die'] = createPixelCanvas(16, 16, smallDie, luigiSmallMap);
-    this.luigiSmall['flag'] = createPixelCanvas(16, 16, smallFlag, luigiSmallMap);
+    this.luigiSmall = buildSmall(luigiSmallMap);
+    this.luigiSmallFire = this.marioSmallFire;
+    this.luigiSmallAlt = this.marioSmallAlt;
 
     const luigiSuperMap: Record<string, string> = {
       '.': 'transparent',
@@ -1032,17 +1060,9 @@ export class SpriteSheet {
       'B': COLORS.WHITE,
       'S': COLORS.MARIO_SKIN
     };
-    this.luigiSuper['idle'] = createPixelCanvas(16, 32, superIdle, luigiSuperMap);
-    this.luigiSuper['walk1'] = createPixelCanvas(16, 32, superWalk1, luigiSuperMap);
-    this.luigiSuper['walk2'] = createPixelCanvas(16, 32, superWalk2, luigiSuperMap);
-    this.luigiSuper['walk3'] = createPixelCanvas(16, 32, superWalk3, luigiSuperMap);
-    this.luigiSuper['jump'] = createPixelCanvas(16, 32, superJump, luigiSuperMap);
-    this.luigiSuper['crouch'] = createPixelCanvas(16, 32, superCrouch, luigiSuperMap);
-    this.luigiSuper['skid'] = createPixelCanvas(16, 32, superSkid, luigiSuperMap);
-    this.luigiSuper['flag'] = createPixelCanvas(16, 32, superFlag, luigiSuperMap);
-    this.luigiSuper['throw'] = createPixelCanvas(16, 32, superThrow, luigiSuperMap);
-
-    this.luigiFire = this.marioFire; // Fire Luigi shares Fire Mario palette
+    this.luigiSuper = buildSuper(luigiSuperMap);
+    this.luigiSuperAlt = this.marioSuperAlt;
+    this.luigiFire = this.marioFire;
 
     // Title Screen Mushroom Cursor (8x8)
     const cursorMap: Record<string, string> = {
