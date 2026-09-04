@@ -313,8 +313,8 @@ export class Mario {
         }
       }
 
-      // Variable Jump Height: Holding Jump Sustains Upward Momentum
-      if (input.jump && this.isJumping && this.jumpHoldTimer > 0) {
+      // Variable Jump Height: Holding Jump Sustains Upward Momentum (NES JumpSwimSub)
+      if (input.jump && this.isJumping && this.jumpHoldTimer > 0 && this.vy < 0) {
         this.jumpHoldTimer--;
         this.vy += JUMP_GRAVITY;
       } else {

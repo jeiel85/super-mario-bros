@@ -278,16 +278,15 @@ export class SMB1LevelDecoder {
         continue;
       }
 
-      // Normal Rows (0 to 11)
+      // Normal Rows (0 to 11 in MetatileBuffer, screen row = row + 2)
       const isLarge = (b2 & 0x70) !== 0;
       if (isLarge) {
         const type = (b2 >> 4) & 0x07;
         const len = (b2 & 0x0f) + 1;
 
         if (type === 0 || type === 7) {
-          // Vertical Pipe
-          const pipeH = len;
-          const topY = 13 - pipeH;
+          // Vertical Pipe (NES: top is at row + 2, extends down to ground at row 13)
+          const topY = row + 2;
           if (topY >= 0 && absX + 1 < width) {
             const isEnter = (b2 & 0x08) !== 0;
             tiles[topY][absX] = isEnter ? TileType.PIPE_ENTER_TOP_LEFT : TileType.PIPE_TOP_LEFT;
@@ -296,59 +295,66 @@ export class SMB1LevelDecoder {
               tiles[py][absX] = TileType.PIPE_BODY_LEFT;
               tiles[py][absX + 1] = TileType.PIPE_BODY_RIGHT;
             }
-            // Spawn Piranha Plant if not enter pipe and tall enough
-            if (!isEnter && pipeH >= 2) {
+            // Spawn Piranha Plant if not enter pipe and tall enough (suppressed in 1-1 per authentic NES SMB1)
+            if (!isEnter && topY <= 11 && !(worldNum === 1 && stageNum === 1)) {
               piranhas.push({ pipeX: absX * TILE_SIZE, pipeTopY: topY * TILE_SIZE });
             }
           }
         } else if (type === 1) {
           // Area style / Mushroom Tree
+          const gridY = row + 2;
           for (let tx = absX; tx < absX + len && tx < width; tx++) {
-            tiles[row][tx] = TileType.SOLID_BLOCK;
+            if (gridY < 13) tiles[gridY][tx] = TileType.SOLID_BLOCK;
           }
         } else if (type === 2) {
           // Row of Bricks
+          const gridY = row + 2;
           for (let bx = absX; bx < absX + len && bx < width; bx++) {
-            tiles[row][bx] = TileType.BRICK;
+            if (gridY < 13) tiles[gridY][bx] = TileType.BRICK;
           }
         } else if (type === 3) {
           // Row of Solid Blocks
+          const gridY = row + 2;
           for (let sx = absX; sx < absX + len && sx < width; sx++) {
-            tiles[row][sx] = TileType.SOLID_BLOCK;
+            if (gridY < 13) tiles[gridY][sx] = TileType.SOLID_BLOCK;
           }
         } else if (type === 4) {
           // Row of Coins
+          const gridY = row + 2;
           for (let cx = absX; cx < absX + len && cx < width; cx++) {
-            tiles[row][cx] = TileType.COIN;
+            if (gridY < 13) tiles[gridY][cx] = TileType.COIN;
           }
         } else if (type === 5) {
           // Column of Bricks
-          for (let cy = row; cy < row + len && cy < 13; cy++) {
+          const startY = row + 2;
+          for (let cy = startY; cy < startY + len && cy < 13; cy++) {
             tiles[cy][absX] = TileType.BRICK;
           }
         } else if (type === 6) {
           // Column of Solid Blocks
-          for (let cy = row; cy < row + len && cy < 13; cy++) {
+          const startY = row + 2;
+          for (let cy = startY; cy < startY + len && cy < 13; cy++) {
             tiles[cy][absX] = TileType.SOLID_BLOCK;
           }
         }
       } else {
         // Small Object
         const sType = b2 & 0x0f;
-        if (row < 13 && absX < width) {
+        const gridY = row + 2;
+        if (gridY < 13 && absX < width) {
           switch (sType) {
-            case 0: tiles[row][absX] = TileType.QUESTION_MUSHROOM; break;
-            case 1: tiles[row][absX] = TileType.QUESTION_COIN; break;
-            case 2: tiles[row][absX] = TileType.QUESTION_COIN; break;
-            case 3: tiles[row][absX] = TileType.HIDDEN_1UP; break;
-            case 4: tiles[row][absX] = TileType.BRICK_MUSHROOM; break;
-            case 5: tiles[row][absX] = TileType.BRICK_VINE; break;
-            case 6: tiles[row][absX] = TileType.QUESTION_STAR; break;
-            case 7: tiles[row][absX] = TileType.BRICK_MULTICOIN; break;
-            case 8: tiles[row][absX] = TileType.BRICK_1UP; break;
-            case 10: tiles[row][absX] = TileType.EMPTY_BLOCK; break;
-            case 11: tiles[row][absX] = TileType.JUMPSPRING; break;
-            default: tiles[row][absX] = TileType.BRICK; break;
+            case 0: tiles[gridY][absX] = TileType.QUESTION_MUSHROOM; break;
+            case 1: tiles[gridY][absX] = TileType.QUESTION_COIN; break;
+            case 2: tiles[gridY][absX] = TileType.QUESTION_COIN; break;
+            case 3: tiles[gridY][absX] = TileType.HIDDEN_1UP; break;
+            case 4: tiles[gridY][absX] = TileType.BRICK_MUSHROOM; break;
+            case 5: tiles[gridY][absX] = TileType.BRICK_VINE; break;
+            case 6: tiles[gridY][absX] = TileType.QUESTION_STAR; break;
+            case 7: tiles[gridY][absX] = TileType.BRICK_MULTICOIN; break;
+            case 8: tiles[gridY][absX] = TileType.BRICK_1UP; break;
+            case 10: tiles[gridY][absX] = TileType.EMPTY_BLOCK; break;
+            case 11: tiles[gridY][absX] = TileType.JUMPSPRING; break;
+            default: tiles[gridY][absX] = TileType.BRICK; break;
           }
         }
       }
@@ -364,12 +370,15 @@ export class SMB1LevelDecoder {
       const b2 = enemyBytes[pos + 1];
 
       if ((b1 & 0x0f) === 0x0e) {
+        if (b2 & 0x80) page++;
         pos += 3;
         continue;
       }
       if ((b1 & 0x0f) === 0x0f) {
         if (!(b2 & 0x80)) {
           page = b2 & 0x3f;
+        } else {
+          page++;
         }
         pos += 2;
         continue;
@@ -383,7 +392,9 @@ export class SMB1LevelDecoder {
       const id = b2 & 0x3f;
 
       const px = absX * TILE_SIZE;
-      const py = Math.min(12, row) * TILE_SIZE;
+      const isKoopaTroopa = (id === 0x00 || id === 0x03 || id === 0x0e || id === 0x0f || id === 0x05);
+      const enemyH = isKoopaTroopa ? 24 : 16;
+      const py = (row >= 10) ? (13 * TILE_SIZE - enemyH) : ((row + 2) * TILE_SIZE - enemyH);
 
       // Group Enemies ($37 to $3E)
       if (id >= 0x37 && id <= 0x3e) {

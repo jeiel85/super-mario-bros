@@ -5,8 +5,8 @@ export const CANVAS_HEIGHT = 240;
 export const TILE_SIZE = 16;
 
 // Physics constants (tuned to match 60Hz NES Super Mario Bros 1)
-export const GRAVITY = 0.44;              // Normal downward gravity
-export const JUMP_GRAVITY = 0.22;         // Reduced gravity while holding jump button
+export const GRAVITY = 0.4375;            // FallMForceData = $70 (112/256 px/f^2)
+export const JUMP_GRAVITY = 0.125;        // JumpMForceData = $20 (32/256 px/f^2 while holding A)
 export const TERMINAL_VELOCITY = 4.5;
 
 // Horizontal speeds (pixels per frame)
@@ -18,9 +18,9 @@ export const FRICTION = 0.07;
 export const SKID_DECEL = 0.18;
 
 // Jump impulse
-export const JUMP_IMPULSE_WALK = -4.2;
-export const JUMP_IMPULSE_RUN = -4.8;
-export const JUMP_HOLD_MAX_FRAMES = 16;
+export const JUMP_IMPULSE_WALK = -4.0;    // PlayerYSpdData = $fc (-4.0 px/f)
+export const JUMP_IMPULSE_RUN = -5.0;     // PlayerYSpdData = $fb (-5.0 px/f)
+export const JUMP_HOLD_MAX_FRAMES = 32;   // Authentic NES jump sustain frame window
 export const STOMP_BOUNCE_IMPULSE = -3.2;
 
 // Shell physics
